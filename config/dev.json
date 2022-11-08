@@ -1,0 +1,20 @@
+{
+  "service": "ps-go",
+  "system": {
+    "timeout": "60s"
+  },
+  "mysql": [
+    {
+      "enable":true,
+      "name":"ps",
+      "dsn": "root:root@tcp(127.0.0.1:3306)/process_schedule?charset=utf8mb4&parseTime=True&loc=Local"
+    }
+  ],
+  "redis": [
+    {
+      "enable":true,
+      "name":"ps_cache",
+      "host": "127.0.0.1:6379"
+    }
+  ]
+}
