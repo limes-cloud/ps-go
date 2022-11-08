@@ -3,10 +3,13 @@ package engine
 import (
 	"fmt"
 	"github.com/limeschool/gin"
+	"github.com/robertkrimen/otto"
 	"github.com/spf13/viper"
+	"ps-go/errors"
 	"ps-go/tools/pool"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -14,6 +17,7 @@ type runStore struct {
 	data *viper.Viper
 }
 
+// SetData 递归设置数据
 func (r *runStore) SetData(key string, val any) {
 	tp := reflect.ValueOf(val)
 	if tp.Kind() == reflect.Map {
@@ -26,7 +30,12 @@ func (r *runStore) SetData(key string, val any) {
 	}
 }
 
-// GetMatchData 获取匹配之后的数据
+// GetData 直接通过viper 获取数据
+func (r *runStore) GetData(key string) any {
+	return r.data.Get(key)
+}
+
+// GetMatchData 获取存在表达式的数据
 func (r *runStore) GetMatchData(m any) any {
 	reg := regexp.MustCompile(`\{(\w|\.)+\}`)
 
@@ -160,9 +169,6 @@ type Runner interface {
 
 func (r *runner) Run() {
 	for r.index < r.count {
-		if r.index == -1 { //由于异常中断
-			break
-		}
 		// 获取当前执行的组件列表
 		componentsCount := len(r.rule.Components[r.index])
 
@@ -176,12 +182,22 @@ func (r *runner) Run() {
 		r.wg.Add(componentsCount)
 
 		for i := 0; i < componentsCount; i++ {
-			rt, err := r.NewRuntime(i)
 
-			//处理返回错误数据
+			entry, err := r.IsEntry(i)
 			if err != nil {
 				r.err.Set(err)
+				continue
+			}
+
+			if !entry {
 				r.wg.Done()
+				continue
+			}
+
+			rt, err := r.NewRuntime(i)
+			if err != nil {
+				r.err.Set(err)
+				continue
 			}
 
 			_ = pool.Get().Invoke(rt)
@@ -193,10 +209,8 @@ func (r *runner) Run() {
 
 	// 释放通道
 	r.err.Close()
-	// 执行完所有流程释放通道
-	if r.index != -1 {
-		r.response.Close()
-	}
+	r.response.Close()
+
 }
 
 func (r *runner) NewRuntime(action int) (*runtime, error) {
@@ -216,6 +230,75 @@ func (r *runner) NewRuntime(action int) (*runtime, error) {
 	}, nil
 }
 
+// IsEntry 是否准入
+func (r *runner) IsEntry(action int) (bool, error) {
+	com := r.rule.Components[r.index][action]
+	if com.Condition == "" {
+		return true, nil
+	}
+
+	// 需要执行表达式
+	reg := regexp.MustCompile(`\{(\w|\.)+\}`)
+	variable := reg.FindAllString(com.Condition, -1)
+
+	script := ""
+	cond := com.Condition
+
+	for index, valIndex := range variable {
+		key := fmt.Sprintf("a_%v", index)
+
+		cond = strings.ReplaceAll(cond, valIndex, key)
+
+		newVal := r.runStore.GetData(valIndex[1 : len(valIndex)-1])
+		if newVal == nil {
+			script += fmt.Sprintf("let %v = null;", key)
+			continue
+		}
+
+		// 进行变量转换
+		switch newVal.(type) {
+		case uint8, uint16, uint32, uint, uint64, int8, int16, int32, int, int64, float64, float32, bool:
+			script += fmt.Sprintf("let %v = %v;", key, fmt.Sprint(newVal))
+
+		case string:
+			script += fmt.Sprintf(`let %v = "%v";`, key, newVal.(string))
+
+		case []any, map[string]any:
+			str, _ := json.MarshalToString(newVal)
+			script += fmt.Sprintf(`let %v = %v;`, key, str)
+
+		default:
+			tp := reflect.TypeOf(newVal)
+
+			if tp.Kind() == reflect.Map || tp.Kind() == reflect.Slice {
+				str, _ := json.MarshalToString(newVal)
+				script += fmt.Sprintf(`let %v = %v;`, key, str)
+			} else {
+				//处理不了的数据值默认为 undefined
+				script += fmt.Sprintf("let %v = undefined;", key)
+			}
+		}
+
+	}
+
+	vm := otto.New()
+	script = fmt.Sprintf("function condition(){%v return %v}", script, cond)
+	_, err := vm.Run(script)
+	if err != nil {
+		return false, errors.NewF("准入表达式错误：%v", err.Error())
+	}
+
+	condVal, err := vm.Call("condition", nil)
+	if err != nil {
+		return false, errors.NewF("准入表达式执行错误：%v", err.Error())
+	}
+	if !condVal.IsBoolean() {
+		return false, errors.NewF("准入表达式结果必须是bool")
+	}
+	return condVal.ToBoolean()
+}
+
+// WaitResponse 监听当前流程返回事件，只监听一次，不中断流程
 func (r *runner) WaitResponse() {
 	if r.response.IsClose() {
 		return
@@ -233,6 +316,7 @@ func (r *runner) WaitResponse() {
 	r.runStore.SetData("response.body.msg", data.Msg)
 }
 
+// WaitError 监听当前流程错误事件，只监听一次，并且中断流程执行
 func (r *runner) WaitError() {
 
 	if r.err.IsClose() {
@@ -249,7 +333,7 @@ func (r *runner) WaitError() {
 	defer r.wg.Done()
 
 	// 中断执行流程
-	r.index = -1
+	r.index = r.count
 
 	// 处理返回值
 	if !r.response.IsClose() {

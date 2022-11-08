@@ -41,11 +41,12 @@ type Response struct {
 }
 
 type Component struct {
-	Name  string         `json:"name"`  //组件名
-	Desc  string         `json:"desc"`  //组件描述
-	Type  string         `json:"type"`  //组件类型 [api|script]
-	Input map[string]any `json:"input"` //输入参数
-	Url   string         `json:"url"`   //组件地址|api接口
+	Name      string         `json:"name"`      //组件名
+	Desc      string         `json:"desc"`      //组件描述
+	Type      string         `json:"type"`      //组件类型 [api|script]
+	Input     map[string]any `json:"input"`     //输入参数
+	Condition string         `json:"condition"` //准入条件
+	Url       string         `json:"url"`       //组件地址|api接口
 
 	Method      string            `json:"method"`       //请求方法，仅api支持
 	ContentType string            `json:"content_type"` //数据类型，仅api支持

@@ -6,12 +6,14 @@ import (
 	"github.com/robertkrimen/otto"
 	"ps-go/consts"
 	"ps-go/errors"
+	"ps-go/tools"
 	"ps-go/tools/pool"
 	"sync"
 	"time"
 )
 
 type runtime struct {
+	vm           *otto.Otto
 	wg           *sync.WaitGroup
 	component    Component
 	runStore     *runStore
@@ -96,26 +98,35 @@ func (r *runtime) runApi() (any, error) {
 		}
 	}
 
-	request := HttpRequest{
-		url:         com.Url,
-		method:      com.Method,
-		header:      header,
-		auth:        auth,
-		body:        body,
-		contentType: com.ContentType,
-		timeout:     com.Timeout,
-		respType:    com.RespType,
+	request := tools.HttpRequest{
+		Url:         com.Url,
+		Method:      com.Method,
+		Header:      header,
+		Auth:        auth,
+		Body:        body,
+		ContentType: com.ContentType,
+		Timeout:     com.Timeout,
+		RespType:    com.RespType,
 	}
 
 	return request.Do()
 }
 
-func (r *runtime) runScript() (any, error) {
+func (r *runtime) runScript() (resp any, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = errors.NewF("调用脚本函数失败:%v", p)
+		}
+	}()
+
 	script, err := r.store.LoadScript(r.ctx, r.component.Url)
 	if err != nil {
 		return nil, err
 	}
-	vm := otto.New()
+
+	// 创建调用js vm
+	r.vm = otto.New()
+
 	// 超时设置
 	go func() {
 		// 默认60秒
@@ -125,23 +136,29 @@ func (r *runtime) runScript() (any, error) {
 
 		time.Sleep(time.Duration(r.component.Timeout) * time.Second) // Stop after two seconds
 
-		vm.Interrupt <- func() {
+		r.vm.Interrupt <- func() {
 			panic("script run timeout")
 		}
 
 	}()
 
-	if _, err = vm.Run(script); err != nil {
+	if _, err = r.vm.Run(script); err != nil {
 		r.errType = RunScriptError
 		return nil, errors.NewF("执行脚本失败：%v", err.Error())
 	}
 
-	value, err := vm.Call(consts.ProcessScheduleFunc, nil)
+	// 获取调用入参
+	ctx := GetGlobalJsModule(r)
+	input := r.runStore.GetMatchData(r.component.Input)
+
+	// 调用执行
+	value, err := r.vm.Call(consts.ProcessScheduleFunc, r.ctx, ctx, input)
 	if err != nil {
 		r.errType = RunScriptError
 		return nil, errors.NewF("调用脚本函数失败：%v", err.Error())
 	}
 
+	// 返回结果
 	if v, err := value.Export(); err != nil {
 		r.errType = RunScriptError
 		return nil, errors.NewF("函数返回值类型错误")
