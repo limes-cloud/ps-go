@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
-	"github.com/spf13/viper"
 	"ps-go/errors"
 	"ps-go/tools/pool"
 	"reflect"
@@ -13,158 +12,29 @@ import (
 	"sync"
 )
 
-type runStore struct {
-	data *viper.Viper
-}
-
-// SetData 递归设置数据
-func (r *runStore) SetData(key string, val any) {
-	tp := reflect.ValueOf(val)
-	if tp.Kind() == reflect.Map {
-		iter := tp.MapRange()
-		for iter.Next() {
-			r.SetData(fmt.Sprintf("%v.%v", key, iter.Key()), iter.Value().Interface())
-		}
-	} else {
-		r.data.Set(key, val)
-	}
-}
-
-// GetData 直接通过viper 获取数据
-func (r *runStore) GetData(key string) any {
-	return r.data.Get(key)
-}
-
-// GetMatchData 获取存在表达式的数据
-func (r *runStore) GetMatchData(m any) any {
-	reg := regexp.MustCompile(`\{(\w|\.)+\}`)
-
-	switch m.(type) {
-	case []any:
-		var resp = m.([]any)
-		for key, _ := range resp {
-			resp[key] = r.GetMatchData(resp[key])
-		}
-		return resp
-
-	case string:
-		if str := reg.FindString(m.(string)); str != "" {
-			return r.data.Get(str[1 : len(str)-1])
-		}
-
-	case map[string]any:
-		var resp = m.(map[string]any)
-		for key, _ := range resp {
-			resp[key] = r.GetMatchData(resp[key])
-		}
-		return resp
-	}
-
-	return m
-}
-
-type responseChan struct {
-	response chan responseData
-	isClose  bool
-	lock     sync.RWMutex
-}
-
-func (r *responseChan) Close() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.isClose = true
-	close(r.response)
-}
-
-func (r *responseChan) Set(data responseData) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.response <- data
-}
-
-func (r *responseChan) Get() (responseData, bool) {
-
-	if r.isClose {
-		return responseData{}, false
-	}
-	data, is := <-r.response
-	return data, is
-}
-
-func (r *responseChan) IsClose() bool {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-	return r.isClose
-}
-
-type errorChan struct {
-	err     chan error
-	isClose bool
-	lock    sync.RWMutex
-}
-
-func (r *errorChan) Close() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.isClose = true
-	close(r.err)
-}
-
-func (r *errorChan) Set(data error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.err <- data
-}
-
-func (r *errorChan) Get() (error, bool) {
-	if r.isClose {
-		return nil, false
-	}
-	err, is := <-r.err
-	return err, is
-}
-
-func (r *errorChan) IsClose() bool {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-	return r.isClose
+type Runner interface {
+	Run()
+	WaitResponse()
+	WaitError()
+	Response() any
 }
 
 type runner struct {
 	rule     *Rule           //当前执行的规则
 	count    int             //总的执行步数
 	index    int             //当前执行步数
-	runStore *runStore       //存储运行时数据
+	runStore RunStore        //存储运行时数据
 	wg       *sync.WaitGroup //运行时锁
 	store    *store          //存储引擎
-	response *responseChan
-	err      *errorChan
-	ctx      *gin.Context
+	response *responseChan   //返回通道
+	err      *errorChan      //错误通道
+	ctx      *gin.Context    //上下文
 }
 
 type responseData struct {
 	Code any `json:"code"`
 	Msg  any `json:"msg"`
 	Data any `json:"data"`
-}
-
-type Runner interface {
-	Run()
-	WaitResponse()
-	WaitError()
-	Response() any
 }
 
 func (r *runner) Run() {
@@ -311,9 +181,13 @@ func (r *runner) WaitResponse() {
 	}
 	defer r.response.Close()
 
-	r.runStore.SetData("response.body.code", data.Code)
-	r.runStore.SetData("response.body.data", data.Data)
-	r.runStore.SetData("response.body.msg", data.Msg)
+	r.runStore.SetData("response", map[string]any{
+		"body": map[string]any{
+			"code": data.Code,
+			"msg":  data.Msg,
+			"data": data.Data,
+		},
+	})
 }
 
 // WaitError 监听当前流程错误事件，只监听一次，并且中断流程执行

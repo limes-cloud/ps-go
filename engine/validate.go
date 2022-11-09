@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"github.com/limeschool/gin"
-	"github.com/spf13/viper"
 	"io"
 	"ps-go/tools"
 	"strings"
@@ -15,11 +14,11 @@ type validate struct {
 }
 
 type Validate interface {
-	Bind(ctx *gin.Context) (*viper.Viper, error)
+	Bind(ctx *gin.Context) (map[string]any, error)
 }
 
 // Bind 绑定参数并校验。
-func (v *validate) Bind(ctx *gin.Context) (*viper.Viper, error) {
+func (v *validate) Bind(ctx *gin.Context) (map[string]any, error) {
 	var value any
 	var exist bool
 
@@ -62,11 +61,11 @@ func (v *validate) Bind(ctx *gin.Context) (*viper.Viper, error) {
 		}
 	}
 
-	vp := viper.New()
-	vp.Set("request.query", queryMap)
-	vp.Set("request.body", bodyMap)
-	vp.Set("request.header", headerMap)
-	return vp, nil
+	return gin.H{
+		"query":  queryMap,
+		"body":   bodyMap,
+		"header": headerMap,
+	}, nil
 }
 
 // getQuery 获取query请求参数

@@ -1,26 +1,32 @@
 package engine
 
 import (
+	"context"
+	"crypto/md5"
 	"fmt"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
+	"ps-go/consts"
 	"ps-go/tools"
+	"time"
 )
 
 // GetGlobalJsModule 全局module 函数
 func GetGlobalJsModule(r *runtime) any {
 	return gin.H{
-		"request": getHttpModule(r),
+		"http":    getRequestModule(r),
 		"log":     getLogModule(r),
 		"data":    getStoreModule(r),
+		"traceId": getContextLogID(r),
 	}
 }
 
 // todo 这里需要加上链路日志
-// getHttpModule 设置http 请求函数
-func getHttpModule(r *runtime) func(call otto.FunctionCall) otto.Value {
-	return func(call otto.FunctionCall) otto.Value {
+// getRequestModule 设置http 请求函数，返回详细请求信息包括header头
+func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
+
+	handleArg := func(call otto.FunctionCall) []byte {
 		if len(call.ArgumentList) == 0 {
 			panic("request method argument not null")
 		}
@@ -31,19 +37,106 @@ func getHttpModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 		}
 
 		byteData, err := json.Marshal(param)
+		if err != nil {
+			panic(fmt.Sprint("request method argument must object"))
+		}
+
+		return byteData
+	}
+
+	handleRequest := func(byteData []byte) *tools.HttpRequest {
+		var err error
 
 		request := tools.HttpRequest{}
 		if err = json.Unmarshal(byteData, &request); err != nil {
 			panic(fmt.Sprint("request method argument field err:", err.Error()))
 		}
 
-		response, err := request.Do()
-		if err != nil {
+		if err = request.Do(); err != nil {
 			panic(fmt.Sprint("send http request err:", err.Error()))
 		}
+		return &request
+	}
 
-		value, _ := otto.ToValue(response)
-		return value
+	return map[string]func(call otto.FunctionCall) otto.Value{
+		"requestAll": func(call otto.FunctionCall) otto.Value {
+			argByte := handleArg(call)
+			req := handleRequest(argByte)
+			resp := map[string]any{
+				"data":    req.ResponseBody(),
+				"status":  req.ResponseCode(),
+				"header":  req.ResponseHeader(),
+				"cookies": req.ResponseCookies(),
+			}
+
+			value, _ := r.vm.ToValue(resp)
+			return value
+		},
+
+		"requestAllCache": func(call otto.FunctionCall) otto.Value {
+			argByte := handleArg(call)
+			key := fmt.Sprintf("request_all_%x", md5.Sum(argByte))
+
+			// 查询redis缓存
+			client := r.ctx.Redis(consts.ProcessScheduleCache)
+			if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
+				resp := map[string]any{}
+				if json.UnmarshalFromString(str, &resp) == nil {
+					value, _ := r.vm.ToValue(resp)
+					return value
+				}
+			}
+
+			req := handleRequest(argByte)
+			body := map[string]any{
+				"data":    req.ResponseBody(),
+				"status":  req.ResponseCode(),
+				"header":  req.ResponseHeader(),
+				"cookies": req.ResponseCookies(),
+			}
+
+			// 进行数据缓存
+			str, _ := json.MarshalToString(body)
+			client.Set(context.TODO(), key, str, 5*time.Minute)
+
+			// 返回数据
+			value, _ := r.vm.ToValue(body)
+			return value
+		},
+
+		"request": func(call otto.FunctionCall) otto.Value {
+			argByte := handleArg(call)
+			req := handleRequest(argByte)
+			value, _ := r.vm.ToValue(req.ResponseBody())
+			return value
+		},
+
+		"requestCache": func(call otto.FunctionCall) otto.Value {
+			argByte := handleArg(call)
+			key := fmt.Sprintf("request_%x", md5.Sum(argByte))
+
+			// 查询redis缓存
+			client := r.ctx.Redis(consts.ProcessScheduleCache)
+			if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
+				resp := map[string]any{}
+				if json.UnmarshalFromString(str, &resp) == nil {
+					value, _ := r.vm.ToValue(resp)
+					return value
+				}
+			}
+
+			// 缓存没有，进行实时请求
+			req := handleRequest(argByte)
+			body := req.ResponseBody()
+
+			// 进行数据缓存
+			str, _ := json.MarshalToString(body)
+			client.Set(context.TODO(), key, str, 5*time.Minute)
+
+			// 返回数据
+			value, _ := r.vm.ToValue(body)
+			return value
+		},
 	}
 }
 

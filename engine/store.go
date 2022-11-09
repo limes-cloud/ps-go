@@ -11,13 +11,13 @@ import (
 type store struct {
 }
 
+func NewStore() *store {
+	return &store{}
+}
+
 type Store interface {
 	LoadRule(ctx *gin.Context) (*Rule, error)
 	LoadScript(ctx *gin.Context, name string) (string, error)
-}
-
-func NewStore() *store {
-	return &store{}
 }
 
 // LoadRule 获取指定规则

@@ -27,8 +27,8 @@ type FieldRule struct {
 	Attribute map[string]FieldRule `json:"attribute"` //字段属性 [object]
 	Required  bool                 `json:"required"`  //是否必填 [any]
 	Default   any                  `json:"default"`   //字段默认值 [any]
-	MaxLen    *int                 `json:"max_len"`   //最大长度 [string]
-	MinLen    *int                 `json:"min_len"`   //最小长度 [string]
+	MaxLen    *int                 `json:"maxLen"`    //最大长度 [string]
+	MinLen    *int                 `json:"minLen"`    //最小长度 [string]
 	Max       any                  `json:"max"`       //最大值 [integer|float]
 	Min       any                  `json:"min"`       //最小值 [integer|float]
 	Enum      []any                `json:"enum"`      //枚举值 [integer|float|string|slice]
@@ -47,17 +47,19 @@ type Component struct {
 	Input     map[string]any `json:"input"`     //输入参数
 	Condition string         `json:"condition"` //准入条件
 	Url       string         `json:"url"`       //组件地址|api接口
+	IsCache   bool           `json:"isCache"`   //是否启用缓存
 
-	Method      string            `json:"method"`       //请求方法，仅api支持
-	ContentType string            `json:"content_type"` //数据类型，仅api支持
-	Auth        []string          `json:"auth"`         //数据类型，仅api支持
-	Header      map[string]string `json:"header"`       //数据类型，仅api支持
-	RespType    string            `json:"resp_type"`    //返回数据类型，仅api支持
+	Method       string         `json:"method"`       //请求方法，仅api支持
+	ContentType  string         `json:"contentType"`  //数据类型，仅api支持
+	Auth         []any          `json:"auth"`         //数据类型，仅api支持
+	Header       map[string]any `json:"header"`       //数据类型，仅api支持
+	ResponseType string         `json:"responseType"` //返回数据类型，仅api支持
+	DataType     string         `json:"dataType"`     //请求数据类型，仅api支持
 
-	Timeout       int    `json:"timeout"`         //组件最大运行时间，默认60秒
-	OutputName    string `json:"output_name"`     //返回数据名
-	RetryMaxCount int    `json:"retry_max_count"` //最大重试次数
-	RetryMaxWait  int    `json:"retry_max_wait"`  //重试最大等待时长
+	Timeout       int    `json:"timeout"`       //组件最大运行时间，默认60秒
+	OutputName    string `json:"outputName"`    //返回数据名
+	RetryMaxCount int    `json:"retryMaxCount"` //最大重试次数
+	RetryMaxWait  int    `json:"retryMaxWait"`  //重试最大等待时长
 }
 
 func (f *FieldRule) ValidateInt(val any, is bool) (resp int, ignore bool, err error) {

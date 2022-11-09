@@ -2,14 +2,14 @@ package engine
 
 import (
 	"github.com/limeschool/gin"
-	"github.com/spf13/viper"
 	"sync"
 )
 
 type Engine interface {
 	Store
 	NewValidate(req Request) Validate
-	NewRunner(*gin.Context, *Rule, *viper.Viper) Runner
+	NewRunner(*gin.Context, *Rule, RunStore) Runner
+	NewRunStore() RunStore
 }
 
 var eg *engine
@@ -22,6 +22,7 @@ var validatePool = sync.Pool{New: func() any {
 	return &validate{}
 }}
 
+// NewValidate 创建验证器
 func (engine) NewValidate(req Request) Validate {
 	vd := validatePool.Get().(*validate)
 	validatePool.Put(vd)
@@ -34,16 +35,23 @@ var runnerPool = sync.Pool{New: func() any {
 	return &runner{}
 }}
 
-func (e engine) NewRunner(ctx *gin.Context, rule *Rule, data *viper.Viper) Runner {
+// NewRunStore 创建运行存储器
+func (e engine) NewRunStore() RunStore {
+	return &runStore{
+		data: map[string]any{},
+		lock: sync.RWMutex{},
+	}
+}
+
+// NewRunner 创建运行调度器
+func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner {
 	vd := runnerPool.Get().(*runner)
 	runnerPool.Put(vd)
 
 	vd.rule = rule
 	vd.count = len(rule.Components)
 	vd.index = 0
-	vd.runStore = &runStore{
-		data: data,
-	}
+	vd.runStore = rStore
 	vd.wg = &sync.WaitGroup{}
 	vd.store = e.store
 	vd.response = &responseChan{

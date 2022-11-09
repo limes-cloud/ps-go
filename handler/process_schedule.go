@@ -17,14 +17,18 @@ func ProcessSchedule(ctx *gin.Context) {
 	}
 
 	// 校验参数
-	vp, err := eg.NewValidate(rule.Request).Bind(ctx)
+	requestInfo, err := eg.NewValidate(rule.Request).Bind(ctx)
 	if err != nil {
 		ctx.RespError(err)
 		return
 	}
 
+	// 创建请求存储器
+	runStore := eg.NewRunStore()
+	runStore.SetData("request", requestInfo)
+
 	// 创建运行器
-	runner := eg.NewRunner(ctx, rule, vp)
+	runner := eg.NewRunner(ctx, rule, runStore)
 
 	// 执行服务
 	_ = pool.Get().Invoke(runner)
@@ -34,6 +38,7 @@ func ProcessSchedule(ctx *gin.Context) {
 	runner.WaitResponse()
 	// 获取返回结果
 	data := runner.Response()
+
 	// 输出
 	ctx.RespJson(data)
 }

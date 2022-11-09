@@ -13,26 +13,42 @@ import (
 )
 
 type runtime struct {
-	vm           *otto.Otto
-	wg           *sync.WaitGroup
-	component    Component
-	runStore     *runStore
-	ctx          *gin.Context
-	retry        int //重试次数
-	maxRetry     int //最大重试次数
-	retryMaxWait int //重试最大等待时长
-	action       int
-	step         int
-	store        *store
-	response     *responseChan
-	err          *errorChan
-	errType      int
+	vm           *otto.Otto      // js 运行虚拟器
+	wg           *sync.WaitGroup // 运行时锁，与runner共用一个锁
+	component    Component       // 运行组件信息
+	runStore     RunStore        // 运行存储器
+	ctx          *gin.Context    // 上下文
+	retry        int             // 重试次数
+	maxRetry     int             // 最大重试次数
+	retryMaxWait int             // 重试最大等待时长
+	action       int             // 当前所在步数
+	step         int             // 当前所在层级
+	store        *store          // 全局存储器
+	response     *responseChan   // 返回通道
+	err          *errorChan      // 错误通道
+	errType      int             // 错误类型
 }
 
 func (r *runtime) Run() {
 
 	var resp any
 	var err error
+
+	// 进行变量参数转换
+	r.transferData()
+
+	//判断是否使用缓存
+	cache := r.newRunCache()
+	if r.component.IsCache {
+		if resp, err = cache.getCache(); err == nil {
+
+			r.runStore.SetData(r.component.OutputName, resp)
+			r.wg.Done()
+
+			return
+		}
+	}
+
 	if r.component.Type == ComponentTypeApi {
 		resp, err = r.runApi()
 	} else {
@@ -53,9 +69,19 @@ func (r *runtime) Run() {
 
 		return
 	}
+
 	// 顺利执行完成
-	r.wg.Done()
 	r.runStore.SetData(r.component.OutputName, resp)
+	if r.component.IsCache {
+		cache.setCache(resp)
+	}
+	r.wg.Done()
+}
+
+func (r *runtime) newRunCache() *runCache {
+	return &runCache{
+		r,
+	}
 }
 
 func (r *runtime) runApi() (any, error) {
@@ -67,49 +93,52 @@ func (r *runtime) runApi() (any, error) {
 
 	// 转换header
 	if len(com.Header) != 0 {
-		headerData := r.runStore.GetMatchData(com.Header)
-
-		if data, ok := headerData.(map[string]string); ok {
-			header = data
-		}
-
-		if data, ok := headerData.(map[string]any); ok {
-			for key, val := range data {
-				header[key] = fmt.Sprint(val)
-			}
+		for key, val := range com.Header {
+			header[key] = fmt.Sprint(val)
 		}
 	}
 
 	// 转换body
 	if len(com.Input) != 0 {
-		body = r.runStore.GetMatchData(com.Input)
+		body = com.Input
 	}
 
 	// 转换auth
 	if len(com.Auth) != 0 {
-		authData := r.runStore.GetMatchData(com.Auth)
-		if data, ok := authData.([]string); ok {
-			auth = data
-		}
-		if data, ok := authData.([]any); ok {
-			for key, val := range data {
-				auth[key] = fmt.Sprint(val)
-			}
+		for key, val := range com.Auth {
+			auth[key] = fmt.Sprint(val)
 		}
 	}
 
 	request := tools.HttpRequest{
-		Url:         com.Url,
-		Method:      com.Method,
-		Header:      header,
-		Auth:        auth,
-		Body:        body,
-		ContentType: com.ContentType,
-		Timeout:     com.Timeout,
-		RespType:    com.RespType,
+		Url:          com.Url,
+		Method:       com.Method,
+		Header:       header,
+		Auth:         auth,
+		Body:         body,
+		ContentType:  com.ContentType,
+		Timeout:      com.Timeout,
+		ResponseType: com.ResponseType,
+		DataType:     com.DataType,
 	}
 
-	return request.Do()
+	return request.Result()
+}
+
+// transferData 对可输入变量字段进行转换
+func (r *runtime) transferData() {
+	if len(r.component.Header) != 0 {
+		r.runStore.GetMatchData(r.component.Header)
+	}
+
+	if len(r.component.Input) != 0 {
+		r.runStore.GetMatchData(r.component.Input)
+	}
+
+	if len(r.component.Auth) != 0 {
+		r.runStore.GetMatchData(r.component.Auth)
+	}
+
 }
 
 func (r *runtime) runScript() (resp any, err error) {
@@ -149,7 +178,7 @@ func (r *runtime) runScript() (resp any, err error) {
 
 	// 获取调用入参
 	ctx := GetGlobalJsModule(r)
-	input := r.runStore.GetMatchData(r.component.Input)
+	input := r.component.Input
 
 	// 调用执行
 	value, err := r.vm.Call(consts.ProcessScheduleFunc, r.ctx, ctx, input)
