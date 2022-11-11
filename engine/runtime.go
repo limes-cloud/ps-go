@@ -145,13 +145,20 @@ func (r *runtime) runApi() (any, error) {
 		DataType:     com.DataType,
 	}
 
+	// 设置api的请求日志
+	defer r.componentLog.SetApiRequest(request)
+
 	return request.Result()
 }
 
 func (r *runtime) runScript() (resp any, err error) {
 	defer func() {
 		if p := recover(); p != nil {
-			err = errors.NewF("调用脚本函数失败:%v", p)
+			if e, ok := p.(error); ok {
+				err = errors.NewF("调用脚本函数失败:%v", e.Error())
+			} else {
+				err = errors.NewF("脚本异常中断，recover：%v", p)
+			}
 		}
 	}()
 

@@ -33,7 +33,7 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 
 		param, err := call.Argument(0).Export()
 		if err != nil {
-			panic(fmt.Sprint("request method argument type err:", err.Error()))
+			panic(fmt.Sprintf("request method argument type err:%v", err.Error()))
 		}
 
 		byteData, err := json.Marshal(param)
@@ -53,7 +53,7 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 
 		request := tools.HttpRequest{}
 		if err = json.Unmarshal(byteData, &request); err != nil {
-			err = errors.NewF("request method argument field err:", err.Error())
+			err = errors.NewF("request method argument field err:%v", err.Error())
 			log.SetError(err)
 			panic(err)
 		}
@@ -62,7 +62,7 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		log.SetRequest(request)
 
 		if err = request.Do(); err != nil {
-			err = errors.NewF("send http request err:", err.Error())
+			err = errors.NewF("send http request err:%v", err.Error())
 			log.SetError(err)
 			panic(err)
 		}
