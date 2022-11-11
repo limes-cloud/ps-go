@@ -9,5 +9,5 @@ var (
 	DBDupError      = &gin.CustomError{Code: 100005, Msg: "已存在重复的数据"}
 	DBNotFoundError = &gin.CustomError{Code: 100006, Msg: "不存在数据"}
 
-	RuleNotFoundError = &gin.CustomError{Code: 110000, Msg: "流程规则不存在"}
+	RuleNotFoundError = &gin.CustomError{Code: 100100, Msg: "流程规则不存在"}
 )

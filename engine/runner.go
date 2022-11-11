@@ -3,12 +3,8 @@ package engine
 import (
 	"fmt"
 	"github.com/limeschool/gin"
-	"github.com/robertkrimen/otto"
 	"ps-go/errors"
 	"ps-go/tools/pool"
-	"reflect"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 )
@@ -18,9 +14,9 @@ type Runner interface {
 	WaitResponse()
 	WaitError()
 	Response() any
-	SetRunTime()
-	SetStartTime(t time.Time)
+	SetStartTimeLog(t time.Time)
 	SaveLog()
+	SetRequestLog(data any)
 }
 
 type runner struct {
@@ -45,7 +41,6 @@ type responseData struct {
 }
 
 func (r *runner) Run() {
-
 	for r.index < r.count {
 
 		// 设置执行的步数
@@ -69,6 +64,10 @@ func (r *runner) Run() {
 	// 释放通道
 	r.err.Close()
 	r.response.Close()
+
+	// 存储日志
+	r.logger.SetRunTime()
+	r.SaveLog()
 }
 
 func (r *runner) RunComponent(count int) {
@@ -79,16 +78,6 @@ func (r *runner) RunComponent(count int) {
 	r.wg.Add(count)
 
 	for i := 0; i < count; i++ {
-		entry, err := r.IsEntry(i)
-		if err != nil {
-			r.err.Set(err)
-			continue
-		}
-
-		if !entry {
-			r.wg.Done()
-			continue
-		}
 
 		rt, err := r.NewRuntime(log, i)
 		if err != nil {
@@ -126,74 +115,6 @@ func (r *runner) NewLogger() {
 		LogId: r.ctx.TraceID,
 		Step:  r.count,
 	}
-}
-
-// IsEntry 是否准入
-func (r *runner) IsEntry(action int) (bool, error) {
-	com := r.rule.Components[r.index][action]
-	if com.Condition == "" {
-		return true, nil
-	}
-
-	// 需要执行表达式
-	reg := regexp.MustCompile(`\{(\w|\.)+\}`)
-	variable := reg.FindAllString(com.Condition, -1)
-
-	script := ""
-	cond := com.Condition
-
-	for index, valIndex := range variable {
-		key := fmt.Sprintf("a_%v", index)
-
-		cond = strings.ReplaceAll(cond, valIndex, key)
-
-		newVal := r.runStore.GetData(valIndex[1 : len(valIndex)-1])
-		if newVal == nil {
-			script += fmt.Sprintf("let %v = null;", key)
-			continue
-		}
-
-		// 进行变量转换
-		switch newVal.(type) {
-		case uint8, uint16, uint32, uint, uint64, int8, int16, int32, int, int64, float64, float32, bool:
-			script += fmt.Sprintf("let %v = %v;", key, fmt.Sprint(newVal))
-
-		case string:
-			script += fmt.Sprintf(`let %v = "%v";`, key, newVal.(string))
-
-		case []any, map[string]any:
-			str, _ := json.MarshalToString(newVal)
-			script += fmt.Sprintf(`let %v = %v;`, key, str)
-
-		default:
-			tp := reflect.TypeOf(newVal)
-
-			if tp.Kind() == reflect.Map || tp.Kind() == reflect.Slice {
-				str, _ := json.MarshalToString(newVal)
-				script += fmt.Sprintf(`let %v = %v;`, key, str)
-			} else {
-				//处理不了的数据值默认为 undefined
-				script += fmt.Sprintf("let %v = undefined;", key)
-			}
-		}
-
-	}
-
-	vm := otto.New()
-	script = fmt.Sprintf("function condition(){%v return %v}", script, cond)
-	_, err := vm.Run(script)
-	if err != nil {
-		return false, errors.NewF("准入表达式错误：%v", err.Error())
-	}
-
-	condVal, err := vm.Call("condition", nil)
-	if err != nil {
-		return false, errors.NewF("准入表达式执行错误：%v", err.Error())
-	}
-	if !condVal.IsBoolean() {
-		return false, errors.NewF("准入表达式结果必须是bool")
-	}
-	return condVal.ToBoolean()
 }
 
 // WaitResponse 监听当前流程返回事件，只监听一次，不中断流程
@@ -234,10 +155,7 @@ func (r *runner) WaitError() {
 	}
 
 	r.logger.SetError(err)
-	// 状态应该根据error的类型来进行判断
-	//if r.rule.Suspend {
-	//	r.logger.SetStatus()
-	//}
+	r.Suspend(err)
 
 	//当遇到报错时，应该先处理完事物才done 否则无法准确中断流程执行。
 	defer r.wg.Done()
@@ -247,19 +165,22 @@ func (r *runner) WaitError() {
 
 	// 处理返回值
 	if !r.response.IsClose() {
-		if customErr, ok := err.(*gin.CustomError); ok {
-			r.response.Set(responseData{
-				Code: customErr.Code,
-				Msg:  customErr.Msg,
-			})
-		} else {
-			r.response.Set(responseData{
-				Code: 10000,
-				Msg:  err.Error(),
-			})
-		}
+		r.ResponseError(err)
+	}
+}
+
+func (r *runner) ResponseError(err error) {
+	if e, ok := err.(*gin.CustomError); ok {
+		r.response.Set(responseData{Code: e.Code, Msg: e.Msg})
+		return
 	}
 
+	if e, ok := err.(*Error); ok {
+		r.response.Set(responseData{Code: e.Code, Msg: e.Msg})
+		return
+	}
+
+	r.response.Set(responseData{Code: errors.DefaultCode, Msg: err.Error()})
 }
 
 func (r *runner) Response() any {
@@ -273,15 +194,28 @@ func (r *runner) Response() any {
 	return resp
 }
 
+func (r *runner) Suspend(err error) {
+	if !r.rule.Suspend {
+		return
+	}
+
+	// 在设置了挂起的情况下，非中断错误，全部挂起
+	if e, ok := err.(*Error); ok && e.Code != ActiveBreakErrorCode && e.Code != BreakErrorCode {
+		// todo suspend
+		fmt.Println("====suspend 挂起====")
+	}
+}
+
+// todo SaveLog
 func (r *runner) SaveLog() {
 	//r.logger
 	fmt.Println(r.logger.GetString())
 }
 
-func (r *runner) SetRunTime() {
-	r.logger.SetRunTime()
+func (r *runner) SetRequestLog(data any) {
+	r.logger.SetRequest(data)
 }
 
-func (r *runner) SetStartTime(t time.Time) {
+func (r *runner) SetStartTimeLog(t time.Time) {
 	r.logger.SetStartTime(t)
 }

@@ -22,10 +22,10 @@ type HttpRequest struct {
 	ResponseType string            `json:"response_type"`
 
 	// 返回数据
-	respHeader  map[string]string `json:"-"`
-	respCode    int               `json:"-"`
-	respBody    any               `json:"-"`
-	respCookies map[string]string `json:"-"`
+	respHeader  map[string]string
+	respCode    int
+	respBody    any
+	respCookies map[string]string
 }
 
 func (r *HttpRequest) ResponseHeader() map[string]string {

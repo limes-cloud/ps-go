@@ -34,11 +34,13 @@ func ProcessSchedule(ctx *gin.Context) {
 	runner := eg.NewRunner(ctx, rule, runStore)
 
 	// 设置执行日志
-	runner.SetStartTime(startTime)
-	defer runner.SetRunTime()
+	runner.SetStartTimeLog(startTime)
+	runner.SetRequestLog(requestInfo)
+	// 流程结束异步存储日志
 	defer func() {
 		go runner.SaveLog()
 	}()
+
 	// 执行服务
 	_ = pool.Get().Invoke(runner)
 	// 异步监听错误信息
@@ -50,5 +52,4 @@ func ProcessSchedule(ctx *gin.Context) {
 
 	// 输出
 	ctx.RespJson(data)
-
 }

@@ -7,20 +7,20 @@ import (
 )
 
 const (
-	defaultCode = 100001 //通用错误吗
+	DefaultCode = 100001 //通用错误吗
 )
 
 var (
 	New = func(msg string) error {
 		return &gin.CustomError{
-			Code: defaultCode,
+			Code: DefaultCode,
 			Msg:  msg,
 		}
 	}
 
 	NewF = func(msg string, arg ...interface{}) error {
 		return &gin.CustomError{
-			Code: defaultCode,
+			Code: DefaultCode,
 			Msg:  fmt.Sprintf(msg, arg...),
 		}
 	}

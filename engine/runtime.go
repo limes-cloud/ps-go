@@ -8,6 +8,9 @@ import (
 	"ps-go/errors"
 	"ps-go/tools"
 	"ps-go/tools/pool"
+	"reflect"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,7 +27,6 @@ type runtime struct {
 	step         int             // 当前所在层级
 	response     *responseChan   // 返回通道
 	err          *errorChan      // 错误通道
-	errType      int             // 错误类型
 
 	runStore     RunStore     // 运行存储器
 	store        Store        // 全局存储器
@@ -57,6 +59,17 @@ func (r *runtime) Run() {
 	// 设置组件日志
 	defer r.setLog(resp, err, time.Now())
 
+	// 判断是否跳过
+	entry, err := r.IsEntry(r.component)
+	if err != nil {
+		r.err.Set(err)
+	}
+
+	if !entry {
+		r.componentLog.SetSkip(true)
+		r.wg.Done()
+		return
+	}
 	// 进行任务执行
 	// 进行变量参数转换
 	r.transferData()
@@ -79,7 +92,7 @@ func (r *runtime) Run() {
 
 	//处理请求异常
 	if err != nil {
-		if r.retry < r.maxRetry && r.errType != RunScriptError {
+		if r.retry < r.maxRetry && r.IsRetry(err) {
 			if r.retryMaxWait != 0 {
 				time.Sleep(r.getWaitTime(r.retry, r.maxRetry, r.retryMaxWait))
 			}
@@ -154,10 +167,10 @@ func (r *runtime) runApi() (any, error) {
 func (r *runtime) runScript() (resp any, err error) {
 	defer func() {
 		if p := recover(); p != nil {
-			if e, ok := p.(error); ok {
-				err = errors.NewF("调用脚本函数失败:%v", e.Error())
+			if e, ok := p.(*Error); ok {
+				err = e
 			} else {
-				err = errors.NewF("脚本异常中断，recover：%v", p)
+				err = NewSystemPanicError(fmt.Sprint(p))
 			}
 		}
 	}()
@@ -171,8 +184,7 @@ func (r *runtime) runScript() (resp any, err error) {
 	go r.waitTimeout()
 
 	if _, err = r.vm.Run(script); err != nil {
-		r.errType = RunScriptError
-		return nil, errors.NewF("执行脚本失败：%v", err.Error())
+		return nil, NewRunScriptError(err.Error())
 	}
 
 	// 获取调用入参
@@ -182,14 +194,12 @@ func (r *runtime) runScript() (resp any, err error) {
 	// 调用执行
 	value, err := r.vm.Call(consts.ProcessScheduleFunc, r.ctx, ctx, input)
 	if err != nil {
-		r.errType = RunScriptError
-		return nil, errors.NewF("调用脚本函数失败：%v", err.Error())
+		return nil, NewRunScriptFuncError(err.Error())
 	}
 
 	// 返回结果
 	if v, err := value.Export(); err != nil {
-		r.errType = RunScriptError
-		return nil, errors.NewF("函数返回值类型错误")
+		return nil, NewScriptFuncReturnError(err.Error())
 	} else {
 		return v, nil
 	}
@@ -244,4 +254,78 @@ func (r *runtime) getWaitTime(cur, max, wait int) time.Duration {
 	} else {
 		return time.Duration((wait/max)*cur) * time.Second
 	}
+}
+
+func (r *runtime) IsRetry(err error) bool {
+	if e, ok := err.(*Error); ok {
+		return e.Code == NetworkErrorCode
+	}
+	return false
+}
+
+// IsEntry 是否准入
+func (r *runtime) IsEntry(com Component) (bool, error) {
+	if com.Condition == "" {
+		return true, nil
+	}
+
+	// 需要执行表达式
+	reg := regexp.MustCompile(`\{(\w|\.)+}`)
+	variable := reg.FindAllString(com.Condition, -1)
+
+	script := ""
+	cond := com.Condition
+
+	for index, valIndex := range variable {
+		key := fmt.Sprintf("a_%v", index)
+
+		cond = strings.ReplaceAll(cond, valIndex, key)
+
+		newVal := r.runStore.GetData(valIndex[1 : len(valIndex)-1])
+		if newVal == nil {
+			script += fmt.Sprintf("let %v = null;", key)
+			continue
+		}
+
+		// 进行变量转换
+		switch newVal.(type) {
+		case uint8, uint16, uint32, uint, uint64, int8, int16, int32, int, int64, float64, float32, bool:
+			script += fmt.Sprintf("let %v = %v;", key, fmt.Sprint(newVal))
+
+		case string:
+			script += fmt.Sprintf(`let %v = "%v";`, key, newVal.(string))
+
+		case []any, map[string]any:
+			str, _ := json.MarshalToString(newVal)
+			script += fmt.Sprintf(`let %v = %v;`, key, str)
+
+		default:
+			tp := reflect.TypeOf(newVal)
+
+			if tp.Kind() == reflect.Map || tp.Kind() == reflect.Slice {
+				str, _ := json.MarshalToString(newVal)
+				script += fmt.Sprintf(`let %v = %v;`, key, str)
+			} else {
+				//处理不了的数据值默认为 undefined
+				script += fmt.Sprintf("let %v = undefined;", key)
+			}
+		}
+
+	}
+
+	vm := otto.New()
+	script = fmt.Sprintf("function condition(){%v return %v}", script, cond)
+	_, err := vm.Run(script)
+	if err != nil {
+		return false, NewConditionError(err.Error())
+	}
+
+	condVal, err := vm.Call("condition", nil)
+	if err != nil {
+		return false, NewConditionError(err.Error())
+	}
+	if !condVal.IsBoolean() {
+		return false, NewConditionError("准入表达式结果必须是bool")
+	}
+	return condVal.ToBoolean()
 }

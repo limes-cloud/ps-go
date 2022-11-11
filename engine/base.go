@@ -19,13 +19,9 @@ const (
 )
 
 const (
-	RunActiveSuspend = "主动挂起"
-	RunErrorSuspend  = "错误挂起"
-	RunBreak         = "流程中断"
-	RunStatus        = "流程结束"
-)
-
-const (
-	RunScriptError = 1 + iota // 执行脚本错误
-	NetworkError   = 1 + iota // 网络错误
+	RunActiveSuspend = "ActiveSuspend"
+	RunErrorSuspend  = "ErrorSuspend"
+	RunErrorBreak    = "ErrorBreak"
+	RunActiveBreak   = "ActiveBreak"
+	RunSuccess       = "Success"
 )

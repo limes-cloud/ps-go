@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"github.com/go-redis/redis/v8"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
 	"ps-go/consts"
-	"ps-go/errors"
 	"ps-go/tools"
+	"ps-go/tools/lock"
 	"time"
 )
 
@@ -28,17 +29,17 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 
 	handleArg := func(call otto.FunctionCall) []byte {
 		if len(call.ArgumentList) == 0 {
-			panic("request method argument not null")
+			panic(NewModuleArgError("request method argument not null"))
 		}
 
 		param, err := call.Argument(0).Export()
 		if err != nil {
-			panic(fmt.Sprintf("request method argument type err:%v", err.Error()))
+			panic(NewModuleArgError(fmt.Sprintf("request method argument type err:%v", err.Error())))
 		}
 
 		byteData, err := json.Marshal(param)
 		if err != nil {
-			panic(fmt.Sprint("request method argument must object"))
+			panic(NewModuleArgError(fmt.Sprint("request method argument must object")))
 		}
 
 		return byteData
@@ -53,7 +54,7 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 
 		request := tools.HttpRequest{}
 		if err = json.Unmarshal(byteData, &request); err != nil {
-			err = errors.NewF("request method argument field err:%v", err.Error())
+			err = NewModuleArgError(fmt.Sprintf("request method argument field err:%v", err.Error()))
 			log.SetError(err)
 			panic(err)
 		}
@@ -62,7 +63,11 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		log.SetRequest(request)
 
 		if err = request.Do(); err != nil {
-			err = errors.NewF("send http request err:%v", err.Error())
+			if _, ok := err.(*gin.CustomError); ok {
+				err = NewRequestError(err.Error())
+			} else {
+				err = NewNetworkError(err.Error())
+			}
 			log.SetError(err)
 			panic(err)
 		}
@@ -74,6 +79,18 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		log.SetRespCookies(request.ResponseCookies())
 
 		return &request
+	}
+
+	handleGetCache := func(client *redis.Client, key string) (otto.Value, bool) {
+		// 查询redis缓存
+		if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
+			resp := map[string]any{}
+			if json.UnmarshalFromString(str, &resp) == nil {
+				value, _ := r.vm.ToValue(resp)
+				return value, true
+			}
+		}
+		return otto.Value{}, false
 	}
 
 	return map[string]func(call otto.FunctionCall) otto.Value{
@@ -96,14 +113,19 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 			argByte := handleArg(call)
 			key := fmt.Sprintf("request_all_%x", md5.Sum(argByte))
 
-			// 查询redis缓存
 			client := r.ctx.Redis(consts.ProcessScheduleCache)
-			if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
-				resp := map[string]any{}
-				if json.UnmarshalFromString(str, &resp) == nil {
-					value, _ := r.vm.ToValue(resp)
-					return value
-				}
+			// 查询缓存
+			if value, ok := handleGetCache(client, key); ok {
+				return value
+			}
+
+			// 上锁
+			lc := lock.NewLock(r.ctx, fmt.Sprintf("lock_%v", key))
+			lc.Acquire()
+			defer lc.Release()
+
+			if value, ok := handleGetCache(client, key); ok {
+				return value
 			}
 
 			req := handleRequest(argByte)
@@ -133,15 +155,20 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		"requestCache": func(call otto.FunctionCall) otto.Value {
 			argByte := handleArg(call)
 			key := fmt.Sprintf("request_%x", md5.Sum(argByte))
-
-			// 查询redis缓存
 			client := r.ctx.Redis(consts.ProcessScheduleCache)
-			if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
-				resp := map[string]any{}
-				if json.UnmarshalFromString(str, &resp) == nil {
-					value, _ := r.vm.ToValue(resp)
-					return value
-				}
+
+			// 查询缓存
+			if value, ok := handleGetCache(client, key); ok {
+				return value
+			}
+
+			// 上锁
+			lc := lock.NewLock(r.ctx, fmt.Sprintf("lock_%v", key))
+			lc.Acquire()
+			defer lc.Release()
+
+			if value, ok := handleGetCache(client, key); ok {
+				return value
 			}
 
 			// 缓存没有，进行实时请求

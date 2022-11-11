@@ -35,6 +35,7 @@ type ComponentLog interface {
 	NewRequestLog() RequestLog
 	SetStep(step int)
 	SetAction(c int)
+	SetSkip(is bool)
 }
 
 type RequestLog interface {
@@ -120,7 +121,7 @@ type componentLog struct {
 	Url        string         `json:"url"`         //地址
 	OutputName string         `json:"output_name"` //输出对象名
 	IsCache    bool           `json:"is_cache"`    //是否启用缓存
-
+	IsSkip     bool           `json:"is_skip"`     //是否进入执行
 	// api 特有日志字段
 	Method       string            `json:"method,omitempty"`
 	Body         any               `json:"body,omitempty"`
@@ -138,6 +139,10 @@ type componentLog struct {
 
 func (s *componentLog) SetStep(step int) {
 	s.Step = step
+}
+
+func (s *componentLog) SetSkip(is bool) {
+	s.IsSkip = is
 }
 
 func (s *componentLog) SetAction(c int) {
