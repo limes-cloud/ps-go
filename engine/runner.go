@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"github.com/limeschool/gin"
+	"go.uber.org/zap"
 	"ps-go/errors"
 	"ps-go/tools/pool"
 	"sync"
@@ -41,8 +42,13 @@ type responseData struct {
 }
 
 func (r *runner) Run() {
-	for r.index < r.count {
+	defer func() { // 防止意外Panic
+		if p := recover(); p != nil {
+			r.ctx.Log.Error("recover", zap.Any("panic", p))
+		}
+	}()
 
+	for r.index < r.count {
 		// 设置执行的步数
 		r.logger.SetStep(r.index + 1)
 
@@ -78,17 +84,20 @@ func (r *runner) RunComponent(count int) {
 	r.wg.Add(count)
 
 	for i := 0; i < count; i++ {
-
 		rt, err := r.NewRuntime(log, i)
 		if err != nil {
+
+			// 设置执行层错误
+			log.SetError(err)
+
 			r.err.Set(err)
 			continue
 		}
-
 		_ = pool.Get().Invoke(rt)
 	}
 
 	r.wg.Wait()
+
 }
 
 func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
@@ -143,6 +152,10 @@ func (r *runner) WaitResponse() {
 
 // WaitError 监听当前流程错误事件，只监听一次，并且中断流程执行
 func (r *runner) WaitError() {
+	var err error
+
+	// 设置请求状态
+	defer r.SetStatus(err)
 
 	if r.err.IsClose() {
 		return
@@ -154,7 +167,7 @@ func (r *runner) WaitError() {
 		return
 	}
 
-	r.logger.SetError(err)
+	r.SetError(err)
 	r.Suspend(err)
 
 	//当遇到报错时，应该先处理完事物才done 否则无法准确中断流程执行。
@@ -206,6 +219,30 @@ func (r *runner) Suspend(err error) {
 	}
 }
 
+func (r *runner) SetStatus(err error) {
+	if err == nil {
+		r.logger.SetStatus(RunSuccess)
+		return
+	}
+
+	r.logger.SetStatus(RunBreak)
+
+	if e, ok := err.(*Error); ok {
+		if e.Code == ActiveBreakErrorCode { // 主动中断
+			r.logger.SetStatus(RunActiveBreak)
+		}
+		if e.Code == BreakErrorCode { //错误中断
+			r.logger.SetStatus(RunBreak)
+		}
+		if r.rule.Suspend && e.Code == SuspendErrorCode { // 错误中断
+			r.logger.SetStatus(RunSuspend)
+		}
+		if r.rule.Suspend && e.Code == ActiveSuspendErrorCode { //主动中断
+			r.logger.SetStatus(RunActiveSuspend)
+		}
+	}
+}
+
 // todo SaveLog
 func (r *runner) SaveLog() {
 	//r.logger
@@ -218,4 +255,12 @@ func (r *runner) SetRequestLog(data any) {
 
 func (r *runner) SetStartTimeLog(t time.Time) {
 	r.logger.SetStartTime(t)
+}
+
+func (r *runner) SetError(err error) {
+	r.logger.SetError(err)
+	log := r.logger.GetStepErr(r.index)
+	if log != nil {
+		log.SetError(err)
+	}
 }

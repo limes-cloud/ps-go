@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
+	"go.uber.org/zap"
 	"ps-go/consts"
 	"ps-go/errors"
 	"ps-go/tools"
@@ -51,6 +52,12 @@ func (r *runtime) setLog(resp any, err error, t time.Time) {
 }
 
 func (r *runtime) Run() {
+	defer func() { // 防止意外Panic
+		if p := recover(); p != nil {
+			r.ctx.Log.Error("recover", zap.Any("panic", p))
+		}
+	}()
+
 	var resp any
 	var err error
 
@@ -100,6 +107,7 @@ func (r *runtime) Run() {
 			r.retry++
 
 		} else {
+			r.componentLog.SetError(err)
 			r.err.Set(err)
 		}
 		return

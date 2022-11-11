@@ -19,10 +19,6 @@ func cache(ctx *gin.Context) *redis.Client {
 	return ctx.Redis(consts.ProcessScheduleCache)
 }
 
-//func delCache(ctx *gin.Context, key string) {
-// ctx.Redis(consts.ProcessScheduleCache).Del(ctx, key)
-//}
-
 func delayDelCache(ctx *gin.Context, key string) {
 	ctx.Redis(consts.ProcessScheduleCache).Del(ctx, key)
 	go func() {

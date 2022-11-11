@@ -19,9 +19,9 @@ const (
 )
 
 const (
-	RunActiveSuspend = "ActiveSuspend"
-	RunErrorSuspend  = "ErrorSuspend"
-	RunErrorBreak    = "ErrorBreak"
-	RunActiveBreak   = "ActiveBreak"
-	RunSuccess       = "Success"
+	RunActiveSuspend = "主动挂起" //ActiveSuspend
+	RunSuspend       = "错误挂起" //ErrorSuspend
+	RunBreak         = "错误中断" //ErrorBreak
+	RunActiveBreak   = "主动中断" //ActiveBreak
+	RunSuccess       = "成功执行" //Success
 )

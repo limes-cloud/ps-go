@@ -18,10 +18,12 @@ type Logger interface {
 	NewStepLog(step, ac int) StepLog
 	GetString() string
 	SetStartTime(time.Time)
+	GetStepErr(int) StepLog
 }
 
 type StepLog interface {
 	SetRunTime(t time.Time)
+	SetError(err error)
 	NewComponentLog(step, action int) ComponentLog
 }
 
@@ -81,6 +83,13 @@ type stepLog struct {
 	EndDatetime   string          `json:"end_datetime"`   //结束时间
 	RunTime       string          `json:"run_time"`       //运行时间
 	ComponentLogs []*componentLog `json:"component_logs"` //组件日志
+	Error         string          `json:"error,omitempty"`
+}
+
+func (s *stepLog) SetError(err error) {
+	if err != nil {
+		s.Error = err.Error()
+	}
 }
 
 func (s *stepLog) SetRunTime(t time.Time) {
@@ -133,7 +142,6 @@ type componentLog struct {
 	ResponseType string            `json:"response_type,omitempty"`
 
 	Response    any           `json:"response"`               //输出数据
-	Status      string        `json:"status"`                 //运行状态 错误/成功/跳过
 	RequestLogs []*requestLog `json:"request_logs,omitempty"` //使用脚本请求的数据
 }
 
@@ -319,4 +327,11 @@ func (r *runLog) GetString() string {
 
 func (r *runLog) SetStartTime(t time.Time) {
 	r.start = t
+}
+
+func (r *runLog) GetStepErr(index int) StepLog {
+	if index > len(r.StepLogs) {
+		return nil
+	}
+	return r.StepLogs[index]
 }
