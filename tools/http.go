@@ -61,7 +61,7 @@ func (r *HttpRequest) Do() error {
 	r.Method = strings.ToUpper(r.Method)
 
 	// 默认60秒
-	if r.Timeout == 0 {
+	if r.Timeout <= 0 || r.Timeout > 60 {
 		r.Timeout = 60
 	}
 

@@ -5,8 +5,11 @@ import (
 	"gorm.io/gorm"
 	"ps-go/errors"
 	"ps-go/tools"
+	"ps-go/tools/lock"
 	"time"
 )
+
+var scriptKey = "script_lock"
 
 type Script struct {
 	ID         int64  `gorm:"primary_key" json:"id"`
@@ -54,18 +57,41 @@ func (u *Script) Count(ctx *gin.Context, fs ...callback) (int64, error) {
 	return total, nil
 }
 
+func (u *Script) OneByNameCache(ctx *gin.Context, name string) (bool, error) {
+	byteData, err := cache(ctx).Get(ctx, name).Bytes()
+	if err != nil {
+		return false, err
+	}
+
+	if err = json.Unmarshal(byteData, u); err != nil {
+		return false, err
+	}
+
+	if u.ID == 0 {
+		return true, gorm.ErrRecordNotFound
+	}
+
+	return false, nil
+}
+
 // OneByName 通过name查询规则详情（带缓存）
 func (u *Script) OneByName(ctx *gin.Context, name string) error {
-	if byteData, err := cache(ctx).Get(ctx, name).Bytes(); err == nil && json.Unmarshal(byteData, u) == nil {
-		if u.ID == 0 {
-			return errors.DBNotFoundError
-		}
-		return nil
+	if is, err := u.OneByNameCache(ctx, name); is {
+		return err
+	}
+
+	// 加锁,防止缓存击穿
+	rl := lock.NewLock(ctx, scriptKey)
+	rl.Acquire()
+	defer rl.Release()
+
+	// 获取锁之后重新查询缓存
+	if is, err := u.OneByNameCache(ctx, name); is {
+		return err
 	}
 
 	db := database(ctx).Table(u.Table())
 	if err := db.Where("deleted_at is null").Where("name = ?", name).First(u).Error; err != nil {
-		// 防止缓存穿透
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			cache(ctx).Set(ctx, name, "{}", time.Minute*5)
 		}
@@ -97,9 +123,7 @@ func (u *Script) Create(ctx *gin.Context) error {
 		return errors.New("脚本名称已存在")
 	}
 
-	// 延迟双删
-	delCache(ctx, u.Name)
-	defer delayDelCache(ctx, u.Name)
+	delayDelCache(ctx, u.Name)
 
 	if err := database(ctx).Table(u.Table()).Create(u).Error; err != nil {
 		return transferErr(err)
@@ -121,8 +145,7 @@ func (u *Script) UpdateByID(ctx *gin.Context) error {
 	}
 
 	// 延迟双删
-	delCache(ctx, script.Name)
-	defer delayDelCache(ctx, script.Name)
+	delayDelCache(ctx, script.Name)
 
 	if database(ctx).Table(u.Table()).Where("id = ?", u.ID).Updates(u).Error != nil {
 		return errors.DBError
@@ -133,14 +156,10 @@ func (u *Script) UpdateByID(ctx *gin.Context) error {
 
 // DeleteByName 通过Name删除规则（删除缓存）
 func (u *Script) DeleteByName(ctx *gin.Context, name string) error {
-	// 延迟双删
-	delCache(ctx, name)
-	defer delayDelCache(ctx, name)
-
-	// 删除时间
-	u.DeletedAt = tools.Int64(time.Now().Unix())
-
 	db := database(ctx).Table(u.Table())
+	u.DeletedAt = tools.Int64(time.Now().Unix())
+	delayDelCache(ctx, name)
+
 	if err := db.Where("deleted_at is null").Where("name = ?", name).
 		Updates(u).Error; err != nil {
 		return errors.DBError

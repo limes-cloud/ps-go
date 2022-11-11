@@ -15,7 +15,7 @@ type Engine interface {
 var eg *engine
 
 type engine struct {
-	*store
+	Store
 }
 
 var validatePool = sync.Pool{New: func() any {
@@ -45,32 +45,35 @@ func (e engine) NewRunStore() RunStore {
 
 // NewRunner 创建运行调度器
 func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner {
-	vd := runnerPool.Get().(*runner)
-	runnerPool.Put(vd)
+	run := runnerPool.Get().(*runner)
+	runnerPool.Put(run)
 
-	vd.rule = rule
-	vd.count = len(rule.Components)
-	vd.index = 0
-	vd.runStore = rStore
-	vd.wg = &sync.WaitGroup{}
-	vd.store = e.store
-	vd.response = &responseChan{
+	run.rule = rule
+	run.count = len(rule.Components)
+	run.index = 0
+	run.runStore = rStore
+	run.wg = &sync.WaitGroup{}
+	run.store = e.Store
+	run.response = &responseChan{
 		response: make(chan responseData),
 		lock:     sync.RWMutex{},
 	}
-	vd.ctx = ctx
-	vd.err = &errorChan{
+	run.ctx = ctx
+	run.err = &errorChan{
 		err:  make(chan error),
 		lock: sync.RWMutex{},
 	}
 
-	return vd
+	// 初始化日志
+	run.NewLogger()
+
+	return run
 }
 
 // Init 初始化调度引擎
 func Init() {
 	eg = &engine{
-		store: NewStore(),
+		Store: NewStore(),
 	}
 }
 

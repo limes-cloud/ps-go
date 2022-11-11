@@ -1,8 +1,8 @@
 package types
 
 type GetScriptRequest struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID   int64  `json:"id" form:"id"`
+	Name string `json:"name" form:"name"`
 }
 
 type PageScriptRequest struct {

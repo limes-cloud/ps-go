@@ -8,6 +8,7 @@ import (
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
 	"ps-go/consts"
+	"ps-go/errors"
 	"ps-go/tools"
 	"time"
 )
@@ -15,14 +16,13 @@ import (
 // GetGlobalJsModule 全局module 函数
 func GetGlobalJsModule(r *runtime) any {
 	return gin.H{
-		"http":    getRequestModule(r),
-		"log":     getLogModule(r),
-		"data":    getStoreModule(r),
-		"traceId": getContextLogID(r),
+		"http":  getRequestModule(r),
+		"log":   getLogModule(r),
+		"data":  getStoreModule(r),
+		"logId": getContextLogID(r),
 	}
 }
 
-// todo 这里需要加上链路日志
 // getRequestModule 设置http 请求函数，返回详细请求信息包括header头
 func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
 
@@ -45,21 +45,40 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 	}
 
 	handleRequest := func(byteData []byte) *tools.HttpRequest {
+
 		var err error
+
+		// 创建请求日志
+		log := r.componentLog.NewRequestLog()
 
 		request := tools.HttpRequest{}
 		if err = json.Unmarshal(byteData, &request); err != nil {
-			panic(fmt.Sprint("request method argument field err:", err.Error()))
+			err = errors.NewF("request method argument field err:", err.Error())
+			log.SetError(err)
+			panic(err)
 		}
 
+		// 设置请求参数
+		log.SetRequest(request)
+
 		if err = request.Do(); err != nil {
-			panic(fmt.Sprint("send http request err:", err.Error()))
+			err = errors.NewF("send http request err:", err.Error())
+			log.SetError(err)
+			panic(err)
 		}
+
+		// 设置返回结果
+		log.SetRespBody(request.ResponseBody())
+		log.SetRespCode(request.ResponseCode())
+		log.SetRespHeader(request.ResponseHeader())
+		log.SetRespCookies(request.ResponseCookies())
+
 		return &request
 	}
 
 	return map[string]func(call otto.FunctionCall) otto.Value{
 		"requestAll": func(call otto.FunctionCall) otto.Value {
+
 			argByte := handleArg(call)
 			req := handleRequest(argByte)
 			resp := map[string]any{

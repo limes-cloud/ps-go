@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Runner interface {
@@ -17,18 +18,24 @@ type Runner interface {
 	WaitResponse()
 	WaitError()
 	Response() any
+	SetRunTime()
+	SetStartTime(t time.Time)
+	SaveLog()
 }
 
 type runner struct {
-	rule     *Rule           //当前执行的规则
-	count    int             //总的执行步数
-	index    int             //当前执行步数
-	runStore RunStore        //存储运行时数据
+	rule  *Rule //当前执行的规则
+	count int   //总的执行步数
+	index int   //当前执行步数
+
 	wg       *sync.WaitGroup //运行时锁
-	store    *store          //存储引擎
 	response *responseChan   //返回通道
 	err      *errorChan      //错误通道
 	ctx      *gin.Context    //上下文
+
+	store    Store    //存储引擎
+	runStore RunStore //存储运行时数据
+	logger   Logger   //运行日志记录器
 }
 
 type responseData struct {
@@ -38,7 +45,12 @@ type responseData struct {
 }
 
 func (r *runner) Run() {
+
 	for r.index < r.count {
+
+		// 设置执行的步数
+		r.logger.SetStep(r.index + 1)
+
 		// 获取当前执行的组件列表
 		componentsCount := len(r.rule.Components[r.index])
 
@@ -48,44 +60,52 @@ func (r *runner) Run() {
 			continue
 		}
 
-		// 设置需要执行的组件数量
-		r.wg.Add(componentsCount)
+		// 执行组件脚本/api
+		r.RunComponent(componentsCount)
 
-		for i := 0; i < componentsCount; i++ {
-
-			entry, err := r.IsEntry(i)
-			if err != nil {
-				r.err.Set(err)
-				continue
-			}
-
-			if !entry {
-				r.wg.Done()
-				continue
-			}
-
-			rt, err := r.NewRuntime(i)
-			if err != nil {
-				r.err.Set(err)
-				continue
-			}
-
-			_ = pool.Get().Invoke(rt)
-		}
-
-		r.wg.Wait()
 		r.index++
 	}
 
 	// 释放通道
 	r.err.Close()
 	r.response.Close()
-
 }
 
-func (r *runner) NewRuntime(action int) (*runtime, error) {
+func (r *runner) RunComponent(count int) {
+	log := r.logger.NewStepLog(r.index+1, count)
+	defer log.SetRunTime(time.Now())
+
+	// 设置需要执行的组件数量
+	r.wg.Add(count)
+
+	for i := 0; i < count; i++ {
+		entry, err := r.IsEntry(i)
+		if err != nil {
+			r.err.Set(err)
+			continue
+		}
+
+		if !entry {
+			r.wg.Done()
+			continue
+		}
+
+		rt, err := r.NewRuntime(log, i)
+		if err != nil {
+			r.err.Set(err)
+			continue
+		}
+
+		_ = pool.Get().Invoke(rt)
+	}
+
+	r.wg.Wait()
+}
+
+func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
 	com := r.rule.Components[r.index][action]
 	return &runtime{
+		stepLog:      log,
 		wg:           r.wg,
 		component:    com,
 		response:     r.response,
@@ -98,6 +118,14 @@ func (r *runner) NewRuntime(action int) (*runtime, error) {
 		err:          r.err,
 		runStore:     r.runStore,
 	}, nil
+}
+
+func (r *runner) NewLogger() {
+	r.logger = &runLog{
+		lock:  sync.RWMutex{},
+		LogId: r.ctx.TraceID,
+		Step:  r.count,
+	}
 }
 
 // IsEntry 是否准入
@@ -170,6 +198,8 @@ func (r *runner) IsEntry(action int) (bool, error) {
 
 // WaitResponse 监听当前流程返回事件，只监听一次，不中断流程
 func (r *runner) WaitResponse() {
+	defer r.logger.SetResponseTime()
+
 	if r.response.IsClose() {
 		return
 	}
@@ -203,6 +233,12 @@ func (r *runner) WaitError() {
 		return
 	}
 
+	r.logger.SetError(err)
+	// 状态应该根据error的类型来进行判断
+	//if r.rule.Suspend {
+	//	r.logger.SetStatus()
+	//}
+
 	//当遇到报错时，应该先处理完事物才done 否则无法准确中断流程执行。
 	defer r.wg.Done()
 
@@ -227,9 +263,25 @@ func (r *runner) WaitError() {
 }
 
 func (r *runner) Response() any {
-	resp := r.rule.Response.Body
-	if resp != nil {
-		return r.runStore.GetMatchData(r.rule.Response.Body)
+	var resp any
+	body := r.rule.Response.Body
+	if body != nil {
+		resp = r.runStore.GetMatchData(r.rule.Response.Body)
 	}
-	return nil
+	// 设置返回的数据
+	r.logger.SetResponse(resp)
+	return resp
+}
+
+func (r *runner) SaveLog() {
+	//r.logger
+	fmt.Println(r.logger.GetString())
+}
+
+func (r *runner) SetRunTime() {
+	r.logger.SetRunTime()
+}
+
+func (r *runner) SetStartTime(t time.Time) {
+	r.logger.SetStartTime(t)
 }

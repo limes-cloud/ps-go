@@ -10,6 +10,7 @@ const (
 	ProcessScheduleDB    = "ps"
 	ProcessScheduleCache = "ps_cache"
 	ProcessScheduleFunc  = "handler"
+	ProcessScheduleLock  = "ps_cache" //分布式锁
 )
 
 const (
