@@ -76,10 +76,10 @@ func (u *Script) OneByCache(ctx *gin.Context, key string) (bool, error) {
 	}
 
 	if u.ID == 0 {
-		return true, gorm.ErrRecordNotFound
+		return false, gorm.ErrRecordNotFound
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // OneByName 通过name查询脚本
@@ -179,8 +179,6 @@ func (u *Script) Create(ctx *gin.Context) error {
 				Where("id <= ? and name = ? and status = false", script.ID, script.Name).
 				Delete(&Script{})
 
-		} else {
-			fmt.Println(err.Error())
 		}
 	}
 

@@ -10,6 +10,18 @@ type responseChan struct {
 	lock     sync.RWMutex
 }
 
+// SetAndClose 只接收一次返回信息信息
+func (r *responseChan) SetAndClose(data responseData) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if r.isClose {
+		return
+	}
+	r.response <- data
+	r.isClose = true
+	close(r.response)
+}
+
 func (r *responseChan) Close() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -20,13 +32,10 @@ func (r *responseChan) Close() {
 	close(r.response)
 }
 
-func (r *responseChan) Set(data responseData) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.response <- data
+func (r *responseChan) IsClose() bool {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+	return r.isClose
 }
 
 func (r *responseChan) Get() (responseData, bool) {
@@ -38,20 +47,28 @@ func (r *responseChan) Get() (responseData, bool) {
 	return data, is
 }
 
-func (r *responseChan) IsClose() bool {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-	return r.isClose
-}
-
 type errorChan struct {
 	err     chan error
 	isClose bool
 	lock    sync.RWMutex
 }
 
-func (r *errorChan) Close() {
+// SetAndClose 只接收一次错误中断信息
+func (r *errorChan) SetAndClose(data error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
+	if r.isClose {
+		return
+	}
+	r.isClose = true
+	r.err <- data
+
+	close(r.err)
+}
+
+// Close 关闭通道
+func (r *errorChan) Close() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	if r.isClose {
@@ -59,15 +76,6 @@ func (r *errorChan) Close() {
 	}
 	r.isClose = true
 	close(r.err)
-}
-
-func (r *errorChan) Set(data error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	if r.isClose {
-		return
-	}
-	r.err <- data
 }
 
 func (r *errorChan) Get() (error, bool) {

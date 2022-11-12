@@ -72,7 +72,7 @@ func (r *runtime) Run() {
 	// 判断是否跳过
 	entry, err := r.IsEntry(r.component)
 	if err != nil {
-		r.err.Set(err)
+		r.err.SetAndClose(err)
 	}
 
 	if !entry {
@@ -112,9 +112,12 @@ func (r *runtime) Run() {
 			}
 			r.retry++
 		} else {
-			r.err.Set(err)
+			if r.err.IsClose() {
+				r.wg.Done()
+			} else {
+				r.err.SetAndClose(err)
+			}
 		}
-
 		// 设置执行错误日志
 		r.componentLog.SetError(err)
 		return

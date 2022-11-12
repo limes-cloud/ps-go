@@ -80,10 +80,10 @@ func (u *Rule) OneByCache(ctx *gin.Context, key string) (bool, error) {
 	}
 
 	if u.ID == 0 {
-		return true, gorm.ErrRecordNotFound
+		return false, gorm.ErrRecordNotFound
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // OneByNameMethod 通过name和method查询规则
@@ -163,7 +163,7 @@ func (u *Rule) Create(ctx *gin.Context) error {
 
 	// 延迟双删
 	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, u.Method))
-	delayDelCache(ctx, u.CacheKey(cacheKey))
+	delayDelCache(ctx, cacheKey)
 
 	db := database(ctx)
 	// 查看当前是否存在规则
@@ -206,8 +206,8 @@ func (u *Rule) SwitchVersion(ctx *gin.Context) error {
 	db := database(ctx).Table(u.Table())
 
 	// 延迟双删
-	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, rule.Method))
-	delayDelCache(ctx, u.CacheKey(cacheKey))
+	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", rule.Name, rule.Method))
+	delayDelCache(ctx, cacheKey)
 
 	// 进行版本切换，使用指定id版本
 	return db.Transaction(func(tx *gorm.DB) error {

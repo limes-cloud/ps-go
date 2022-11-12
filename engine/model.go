@@ -41,7 +41,7 @@ type Response struct {
 }
 
 type Component struct {
-	Name      string         `json:"name"`      //组件名
+	Name      string         `json:"name"`      //组件名,同一个step层下，name不能重复
 	Desc      string         `json:"desc"`      //组件描述
 	Type      string         `json:"type"`      //组件类型 [api|script]
 	Input     map[string]any `json:"input"`     //输入参数

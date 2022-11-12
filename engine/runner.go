@@ -93,7 +93,7 @@ func (r *runner) RunComponent(count int) {
 		if err != nil {
 			// 设置执行层错误
 			log.SetError(err)
-			r.err.Set(err)
+			r.err.SetAndClose(err)
 			continue
 		}
 		// 异常重启时，存在同一层执行成功的组件，不在执行
@@ -105,7 +105,6 @@ func (r *runner) RunComponent(count int) {
 	}
 
 	r.wg.Wait()
-
 }
 
 func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
@@ -141,16 +140,12 @@ func (r *runner) NewLogger() {
 func (r *runner) WaitResponse() {
 	defer r.logger.SetResponseTime()
 
-	if r.response.IsClose() {
-		return
-	}
-
 	// 拿到了就删除返回通道，只能返回一次
 	data, is := r.response.Get()
 	if !is {
 		return
 	}
-	defer r.response.Close()
+	//defer r.response.Close()
 
 	r.runStore.SetData("response", map[string]any{
 		"body": map[string]any{
@@ -169,10 +164,6 @@ func (r *runner) WaitError() {
 	defer func() {
 		r.SetStatus(err)
 	}()
-
-	if r.err.IsClose() {
-		return
-	}
 
 	// 监听等待错误中断事件
 	err, is := r.err.Get()
@@ -197,16 +188,16 @@ func (r *runner) WaitError() {
 
 func (r *runner) ResponseError(err error) {
 	if e, ok := err.(*gin.CustomError); ok {
-		r.response.Set(responseData{Code: e.Code, Msg: e.Msg})
+		r.response.SetAndClose(responseData{Code: e.Code, Msg: e.Msg})
 		return
 	}
 
 	if e, ok := err.(*Error); ok {
-		r.response.Set(responseData{Code: e.Code, Msg: e.Msg})
+		r.response.SetAndClose(responseData{Code: e.Code, Msg: e.Msg})
 		return
 	}
 
-	r.response.Set(responseData{Code: errors.DefaultCode, Msg: err.Error()})
+	r.response.SetAndClose(responseData{Code: errors.DefaultCode, Msg: err.Error()})
 }
 
 func (r *runner) Response() any {
@@ -245,7 +236,6 @@ func (r *runner) GetComponentErrorNames() string {
 }
 
 func (r *runner) Suspend(err error) {
-	return
 	if !r.rule.Suspend {
 		return
 	}
@@ -263,7 +253,7 @@ func (r *runner) Suspend(err error) {
 		Path:         r.path,
 		Version:      r.version,
 		Step:         r.count,
-		CurStep:      r.curIndex,
+		CurStep:      r.curIndex + 1,
 		ErrMsg:       err.Error(),
 		Rule:         r.GetRuleToString(),
 		Data:         r.GetDataToString(),
@@ -299,8 +289,6 @@ func (r *runner) SetStatus(err error) {
 }
 
 func (r *runner) SaveLog() {
-	return
-
 	msg := r.logger.GetString()
 	r.ctx.Log.Info("link log", zap.Any("", msg))
 
