@@ -14,8 +14,7 @@ const (
 
 	ComponentTypeApi    = "api"
 	ComponentTypeScript = "script"
-
-	LogDatetimeFormat = "2006-01-02 15:04:05.000"
+	LogDatetimeFormat   = "2006-01-02 15:04:05.000"
 )
 
 const (

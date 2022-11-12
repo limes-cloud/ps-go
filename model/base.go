@@ -37,24 +37,12 @@ func exec(db *gorm.DB, fs ...callback) *gorm.DB {
 }
 
 func transferErr(err error) error {
+	if err == nil {
+		return nil
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.DBNotFoundError
 	} else {
 		return errors.DBError
 	}
-}
-
-type CreateModel struct {
-	CreatedAt int64 `json:"created_at,omitempty"`
-}
-
-type BaseModel struct {
-	CreatedAt int64 `json:"created_at,omitempty"`
-	UpdatedAt int64 `json:"updated_at,omitempty"`
-}
-
-type DeleteModel struct {
-	CreatedAt int64  `json:"created_at,omitempty"`
-	UpdatedAt int64  `json:"updated_at,omitempty"`
-	DeletedAt *int64 `json:"deleted_at,omitempty" gorm:"index"`
 }

@@ -21,7 +21,7 @@ func GetScript(ctx *gin.Context) {
 	}
 
 	if resp, err := service.GetScript(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespData(resp)
 	}
@@ -36,7 +36,7 @@ func PageScript(ctx *gin.Context) {
 	}
 
 	if resp, total, err := service.PageScript(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespList(in.Page, in.Count, int(total), resp)
 	}
@@ -49,20 +49,20 @@ func AddScript(ctx *gin.Context) {
 		return
 	}
 	if err := service.AddScript(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}
 }
 
-func UpdateScript(ctx *gin.Context) {
-	in := types.UpdateScriptRequest{}
+func SwitchVersion(ctx *gin.Context) {
+	in := types.SwitchVersionScriptRequest{}
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		ctx.RespError(errors.ParamsError)
 		return
 	}
-	if err := service.UpdateScript(ctx, &in); err != nil {
-		ctx.RespError(err)
+	if err := service.SwitchVersionScript(ctx, &in); err != nil {
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}
@@ -75,7 +75,7 @@ func DeleteScript(ctx *gin.Context) {
 		return
 	}
 	if err := service.DeleteScript(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}

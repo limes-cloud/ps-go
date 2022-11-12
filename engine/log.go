@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"ps-go/consts"
 	"ps-go/tools"
 	"sync"
 	"time"
@@ -229,8 +230,8 @@ type requestLog struct {
 
 func (s *requestLog) SetRequest(com tools.HttpRequest) {
 	timeout := com.Timeout
-	if timeout <= 0 || timeout > 60 {
-		timeout = 60
+	if timeout <= 0 || timeout > consts.ComponentExecSecond {
+		timeout = consts.ComponentExecSecond
 	}
 	s.Url = com.Url
 	s.Method = com.Method

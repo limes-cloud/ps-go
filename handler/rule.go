@@ -15,13 +15,13 @@ func GetRule(ctx *gin.Context) {
 		return
 	}
 
-	if in.ID == 0 && in.Name == "" {
+	if in.ID == 0 && in.Name == "" && in.Version == "" {
 		ctx.RespError(errors.ParamsError)
 		return
 	}
 
 	if resp, err := service.GetRule(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespData(resp)
 	}
@@ -36,7 +36,7 @@ func PageRule(ctx *gin.Context) {
 	}
 
 	if resp, total, err := service.PageRule(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespList(in.Page, in.Count, int(total), resp)
 	}
@@ -49,20 +49,20 @@ func AddRule(ctx *gin.Context) {
 		return
 	}
 	if err := service.AddRule(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}
 }
 
 func UpdateRule(ctx *gin.Context) {
-	in := types.UpdateRuleRequest{}
+	in := types.SwitchVersionRuleRequest{}
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		ctx.RespError(errors.ParamsError)
 		return
 	}
-	if err := service.UpdateRule(ctx, &in); err != nil {
-		ctx.RespError(err)
+	if err := service.SwitchVersionRule(ctx, &in); err != nil {
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}
@@ -75,7 +75,7 @@ func DeleteRule(ctx *gin.Context) {
 		return
 	}
 	if err := service.DeleteRule(ctx, &in); err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 	} else {
 		ctx.RespSuccess()
 	}

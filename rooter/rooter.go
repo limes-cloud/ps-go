@@ -6,10 +6,7 @@ import (
 	"ps-go/handler"
 )
 
-// Init
-//
-//	@Description:初始化系统的api规则
-//	@return *gin.Engine
+//	Init @Description:初始化系统的api规则
 func Init() *gin.Engine {
 	engine := gin.Default()
 
@@ -22,13 +19,13 @@ func Init() *gin.Engine {
 		api.GET("/rule", handler.GetRule)
 		api.GET("/rule/page", handler.PageRule)
 		api.POST("/rule", handler.AddRule)
-		api.PUT("/rule", handler.UpdateRule)
+		api.PUT("/rule/switch_version", handler.UpdateRule)
 		api.DELETE("/rule", handler.DeleteRule)
 
 		api.GET("/script", handler.GetScript)
 		api.GET("/script/page", handler.PageScript)
 		api.POST("/script", handler.AddScript)
-		api.PUT("/script", handler.UpdateScript)
+		api.PUT("/script/switch_version", handler.SwitchVersion)
 		api.DELETE("/script", handler.DeleteScript)
 	}
 

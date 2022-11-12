@@ -233,9 +233,8 @@ func (r *runtime) transferData() {
 func (r *runtime) waitTimeout() {
 	r.vm.Interrupt = make(chan func(), 1)
 
-	// 默认60秒
-	if r.component.Timeout <= 0 || r.component.Timeout > 60 {
-		r.component.Timeout = 60
+	if r.component.Timeout <= 0 || r.component.Timeout > consts.ComponentExecSecond {
+		r.component.Timeout = consts.ComponentExecSecond
 	}
 
 	// 监听超时时间

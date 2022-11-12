@@ -35,18 +35,18 @@ func AddRule(ctx *gin.Context, in *types.AddRuleRequest) error {
 	return rule.Create(ctx)
 }
 
-func UpdateRule(ctx *gin.Context, in *types.UpdateRuleRequest) error {
+func SwitchVersionRule(ctx *gin.Context, in *types.SwitchVersionRuleRequest) error {
 	rule := model.Rule{}
 	if copier.Copy(&rule, in) != nil {
 		return errors.AssignError
 	}
-	return rule.UpdateByID(ctx)
+	return rule.SwitchVersion(ctx)
 }
 
 func DeleteRule(ctx *gin.Context, in *types.DeleteRuleRequest) error {
-	rule := model.Rule{
-		OperatorID: in.OperatorID,
-		Operator:   in.Operator,
+	rule := model.Rule{}
+	if copier.Copy(&rule, in) != nil {
+		return errors.AssignError
 	}
-	return rule.DeleteByName(ctx, in.Name)
+	return rule.DeleteByID(ctx)
 }

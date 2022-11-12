@@ -56,7 +56,7 @@ type Component struct {
 	ResponseType string         `json:"responseType"` //返回数据类型，仅api支持
 	DataType     string         `json:"dataType"`     //请求数据类型，仅api支持
 
-	Timeout       int    `json:"timeout"`       //组件最大运行时间，默认60秒
+	Timeout       int    `json:"timeout"`       //组件最大运行时间
 	OutputName    string `json:"outputName"`    //返回数据名
 	RetryMaxCount int    `json:"retryMaxCount"` //最大重试次数
 	RetryMaxWait  int    `json:"retryMaxWait"`  //重试最大等待时长

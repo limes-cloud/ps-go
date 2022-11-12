@@ -19,6 +19,10 @@ func GetScript(ctx *gin.Context, in *types.GetScriptRequest) (model.Script, erro
 		err = script.OneByName(ctx, in.Name)
 	}
 
+	if in.Version != "" {
+		err = script.OneByVersion(ctx, in.Version)
+	}
+
 	return script, err
 }
 
@@ -35,18 +39,18 @@ func AddScript(ctx *gin.Context, in *types.AddScriptRequest) error {
 	return script.Create(ctx)
 }
 
-func UpdateScript(ctx *gin.Context, in *types.UpdateScriptRequest) error {
+func SwitchVersionScript(ctx *gin.Context, in *types.SwitchVersionScriptRequest) error {
 	script := model.Script{}
 	if copier.Copy(&script, in) != nil {
 		return errors.AssignError
 	}
-	return script.UpdateByID(ctx)
+	return script.SwitchVersion(ctx)
 }
 
 func DeleteScript(ctx *gin.Context, in *types.DeleteScriptRequest) error {
-	script := model.Script{
-		OperatorID: in.OperatorID,
-		Operator:   in.Operator,
+	script := model.Script{}
+	if copier.Copy(&script, in) != nil {
+		return errors.AssignError
 	}
-	return script.DeleteByName(ctx, in.Name)
+	return script.DeleteByID(ctx)
 }
