@@ -5,7 +5,6 @@ import (
 	"github.com/limeschool/gin"
 	"gorm.io/gorm"
 	"ps-go/consts"
-	"ps-go/errors"
 	"time"
 )
 
@@ -34,15 +33,4 @@ func exec(db *gorm.DB, fs ...callback) *gorm.DB {
 		}
 	}
 	return db
-}
-
-func transferErr(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.DBNotFoundError
-	} else {
-		return errors.DBError
-	}
 }

@@ -64,9 +64,9 @@ func (u *Script) CacheKey(key string) string {
 	return fmt.Sprintf("script_%v", key)
 }
 
-// OneByNameCache 通过name查询缓存
-func (u *Script) OneByNameCache(ctx *gin.Context, name string) (bool, error) {
-	byteData, err := cache(ctx).Get(ctx, name).Bytes()
+// OneByCache 通过key查询缓存
+func (u *Script) OneByCache(ctx *gin.Context, key string) (bool, error) {
+	byteData, err := cache(ctx).Get(ctx, key).Bytes()
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +84,7 @@ func (u *Script) OneByNameCache(ctx *gin.Context, name string) (bool, error) {
 
 // OneByName 通过name查询脚本
 func (u *Script) OneByName(ctx *gin.Context, name string) error {
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(name)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(name)); is {
 		return err
 	}
 
@@ -94,7 +94,7 @@ func (u *Script) OneByName(ctx *gin.Context, name string) error {
 	defer rl.Release()
 
 	// 获取锁之后重新查询缓存
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(name)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(name)); is {
 		return err
 	}
 
@@ -112,27 +112,9 @@ func (u *Script) OneByName(ctx *gin.Context, name string) error {
 	return nil
 }
 
-// OneByVersionCache 通过version查询缓存
-func (u *Script) OneByVersionCache(ctx *gin.Context, version string) (bool, error) {
-	byteData, err := cache(ctx).Get(ctx, version).Bytes()
-	if err != nil {
-		return false, err
-	}
-
-	if err = json.Unmarshal(byteData, u); err != nil {
-		return false, err
-	}
-
-	if u.ID == 0 {
-		return true, gorm.ErrRecordNotFound
-	}
-
-	return false, nil
-}
-
 // OneByVersion 通过version查询脚本
 func (u *Script) OneByVersion(ctx *gin.Context, version string) error {
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(version)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(version)); is {
 		return err
 	}
 
@@ -142,7 +124,7 @@ func (u *Script) OneByVersion(ctx *gin.Context, version string) error {
 	defer rl.Release()
 
 	// 获取锁之后重新查询缓存
-	if is, err := u.OneByVersionCache(ctx, u.CacheKey(version)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(version)); is {
 		return err
 	}
 
@@ -186,8 +168,17 @@ func (u *Script) Create(ctx *gin.Context) error {
 	// 判断是否超过保存最大的副本数量
 	if count > consts.ScriptHistoryCount {
 		script := Script{}
-		if err := db.Table(u.Table()).Order("id desc").Offset(consts.ScriptHistoryCount - 1).Limit(1).First(&script).Error; err == nil {
-			db.Table(u.Table()).Where("id <= ? and status = false", script.ID).Delete(&Script{})
+		if err := db.Table(u.Table()).
+			Where("name = ?", u.Name).
+			Order("id desc").
+			Offset(consts.ScriptHistoryCount - 1).
+			Limit(1).
+			First(&script).Error; err == nil {
+
+			db.Table(u.Table()).
+				Where("id <= ? and name = ? and status = false", script.ID, script.Name).
+				Delete(&Script{})
+
 		} else {
 			fmt.Println(err.Error())
 		}

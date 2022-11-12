@@ -15,7 +15,7 @@ func ProcessSchedule(ctx *gin.Context) {
 	// 获取调度规则
 	rule, err := eg.LoadRule(ctx)
 	if err != nil {
-		ctx.RespError(err)
+		ctx.RespError(TransferError(err))
 		return
 	}
 
@@ -34,12 +34,7 @@ func ProcessSchedule(ctx *gin.Context) {
 	runner := eg.NewRunner(ctx, rule, runStore)
 
 	// 设置执行日志
-	runner.SetStartTimeLog(startTime)
-	runner.SetRequestLog(requestInfo)
-	// 流程结束异步存储日志
-	defer func() {
-		go runner.SaveLog()
-	}()
+	runner.SetRequestLog(startTime, requestInfo)
 
 	// 执行服务
 	_ = pool.Get().Invoke(runner)

@@ -7,6 +7,7 @@ import (
 )
 
 type Rule struct {
+	Version    string        `json:"version"`
 	Record     bool          `json:"record"`     //是否记录流程数据
 	Suspend    bool          `json:"suspend"`    //是否开启异常中断挂起 [脚本错误/异常捕捉错误]
 	Request    Request       `json:"request"`    //请求信息

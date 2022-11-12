@@ -15,15 +15,15 @@ type Runner interface {
 	WaitResponse()
 	WaitError()
 	Response() any
-	SetStartTimeLog(t time.Time)
 	SaveLog()
-	SetRequestLog(data any)
+	SetRequestLog(t time.Time, data any)
 }
 
 type runner struct {
-	rule  *Rule //当前执行的规则
-	count int   //总的执行步数
-	index int   //当前执行步数
+	rule    *Rule  //当前执行的规则
+	count   int    //总的执行步数
+	index   int    //当前执行步数
+	version string //执行流程的版本
 
 	wg       *sync.WaitGroup //运行时锁
 	response *responseChan   //返回通道
@@ -120,9 +120,10 @@ func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
 
 func (r *runner) NewLogger() {
 	r.logger = &runLog{
-		lock:  sync.RWMutex{},
-		LogId: r.ctx.TraceID,
-		Step:  r.count,
+		lock:    sync.RWMutex{},
+		LogId:   r.ctx.TraceID,
+		Step:    r.count,
+		Version: r.version,
 	}
 }
 
@@ -249,12 +250,10 @@ func (r *runner) SaveLog() {
 	fmt.Println(r.logger.GetString())
 }
 
-func (r *runner) SetRequestLog(data any) {
-	r.logger.SetRequest(data)
-}
-
-func (r *runner) SetStartTimeLog(t time.Time) {
+func (r *runner) SetRequestLog(t time.Time, data any) {
 	r.logger.SetStartTime(t)
+	r.logger.SetRequest(data)
+	r.logger.SetVersion(r.version)
 }
 
 func (r *runner) SetError(err error) {

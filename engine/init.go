@@ -48,6 +48,7 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 	run := runnerPool.Get().(*runner)
 	runnerPool.Put(run)
 
+	run.version = rule.Version
 	run.rule = rule
 	run.count = len(rule.Components)
 	run.index = 0

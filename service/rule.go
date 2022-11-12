@@ -16,7 +16,11 @@ func GetRule(ctx *gin.Context, in *types.GetRuleRequest) (model.Rule, error) {
 	}
 
 	if in.Name != "" {
-		err = rule.OneByName(ctx, in.Name)
+		err = rule.OneByNameMethod(ctx, in.Name, in.Method)
+	}
+
+	if in.Version != "" {
+		err = rule.OneByVersion(ctx, in.Version)
 	}
 
 	return rule, err

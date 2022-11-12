@@ -28,6 +28,7 @@ type runtime struct {
 	step         int             // 当前所在层级
 	response     *responseChan   // 返回通道
 	err          *errorChan      // 错误通道
+	version      string          // 当前运行的版本
 
 	runStore     RunStore     // 运行存储器
 	store        Store        // 全局存储器
@@ -99,13 +100,15 @@ func (r *runtime) Run() {
 
 	//处理请求异常
 	if err != nil {
-		if r.retry < r.maxRetry && r.IsRetry(err) {
+		if r.retry <= r.maxRetry && r.IsRetry(err) {
 			if r.retryMaxWait != 0 {
-				time.Sleep(r.getWaitTime(r.retry, r.maxRetry, r.retryMaxWait))
+				time.AfterFunc(r.getWaitTime(r.retry, r.maxRetry, r.retryMaxWait), func() {
+					_ = pool.Get().Invoke(r)
+				})
+			} else {
+				_ = pool.Get().Invoke(r)
 			}
-			_ = pool.Get().Invoke(r)
 			r.retry++
-
 		} else {
 			r.componentLog.SetError(err)
 			r.err.Set(err)
@@ -183,10 +186,14 @@ func (r *runtime) runScript() (resp any, err error) {
 		}
 	}()
 
-	script, err := r.store.LoadScript(r.ctx, r.component.Url)
+	script, version, err := r.store.LoadScript(r.ctx, r.component.Url)
 	if err != nil {
 		return nil, err
 	}
+
+	r.version = version
+	// 设置输出日志版本
+	r.componentLog.SetVersion(version)
 
 	r.vm = otto.New()
 	go r.waitTimeout()

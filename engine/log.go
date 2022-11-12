@@ -20,6 +20,7 @@ type Logger interface {
 	GetString() string
 	SetStartTime(time.Time)
 	GetStepErr(int) StepLog
+	SetVersion(version string)
 }
 
 type StepLog interface {
@@ -30,6 +31,7 @@ type StepLog interface {
 
 type ComponentLog interface {
 	SetResponse(resp any)
+	SetVersion(version string)
 	SetRequest(com Component)
 	SetApiRequest(com tools.HttpRequest)
 	SetRetryCount(c int)
@@ -56,8 +58,9 @@ type runLog struct {
 	start time.Time
 	lock  sync.RWMutex
 
-	LogId string `json:"log_id"` //链路id
-	Step  int    `json:"step"`   //总步数
+	Version string `json:"version"` //执行的版本
+	LogId   string `json:"log_id"`  //链路id
+	Step    int    `json:"step"`    //总步数
 
 	Request  any `json:"request"`  //请求参数
 	Response any `json:"response"` //输出参数
@@ -73,6 +76,73 @@ type runLog struct {
 	RunTime       string `json:"run_time"`      //调用链运行时间
 	StartDatetime string `json:"start_datetime"`
 	EndDatetime   string `json:"end_datetime"`
+}
+
+func (r *runLog) NewStepLog(step, ac int) StepLog {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	log := stepLog{
+		lock:        sync.RWMutex{},
+		Step:        step,
+		ActionCount: ac,
+	}
+	r.StepLogs = append(r.StepLogs, &log)
+	return &log
+}
+
+func (r *runLog) SetRequest(data any) {
+	r.Request = data
+}
+
+func (r *runLog) SetStep(step int) {
+	r.CurStep = step
+}
+
+func (r *runLog) SetError(err error) {
+	if err != nil {
+		r.Error = err.Error()
+	}
+}
+
+func (r *runLog) SetStatus(status string) {
+	r.Status = status
+}
+
+func (r *runLog) SetResponse(data any) {
+	r.Response = data
+}
+
+func (r *runLog) SetResponseTime() {
+	cur := time.Now()
+	r.RespDatetime = cur.Format(LogDatetimeFormat)
+	r.RespTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-r.start.UnixMilli())/1000)
+}
+
+// SetRunTime 计算开始时间和结束时间以及使用时间
+func (r *runLog) SetRunTime() {
+	cur := time.Now()
+	r.StartDatetime = r.start.Format(LogDatetimeFormat)
+	r.EndDatetime = cur.Format(LogDatetimeFormat)
+	r.RunTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-r.start.UnixMilli())/1000)
+}
+
+func (r *runLog) GetString() string {
+	str, _ := json.MarshalToString(r)
+	return str
+}
+
+func (r *runLog) SetStartTime(t time.Time) {
+	r.start = t
+}
+func (r *runLog) SetVersion(v string) {
+	r.Version = v
+}
+
+func (r *runLog) GetStepErr(index int) StepLog {
+	if index > len(r.StepLogs) {
+		return nil
+	}
+	return r.StepLogs[index]
 }
 
 type stepLog struct {
@@ -115,6 +185,7 @@ func (s *stepLog) NewComponentLog(step, action int) ComponentLog {
 type componentLog struct {
 	lock sync.RWMutex
 
+	Version    string `json:"version"`         //执行的版本
 	Step       int    `json:"step"`            //当前行数
 	Action     int    `json:"action"`          //当前列数
 	RetryCount int    `json:"retry_count"`     //重试次数
@@ -152,6 +223,10 @@ func (s *componentLog) SetStep(step int) {
 
 func (s *componentLog) SetSkip(is bool) {
 	s.IsSkip = is
+}
+
+func (s *componentLog) SetVersion(v string) {
+	s.Version = v
 }
 
 func (s *componentLog) SetAction(c int) {
@@ -271,68 +346,4 @@ func (s *requestLog) SetRunTime(t time.Time) {
 	s.StartDatetime = t.Format(LogDatetimeFormat)
 	s.EndDatetime = cur.Format(LogDatetimeFormat)
 	s.RunTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-t.UnixMilli())/1000)
-}
-
-func (r *runLog) NewStepLog(step, ac int) StepLog {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	log := stepLog{
-		lock:        sync.RWMutex{},
-		Step:        step,
-		ActionCount: ac,
-	}
-	r.StepLogs = append(r.StepLogs, &log)
-	return &log
-}
-
-func (r *runLog) SetRequest(data any) {
-	r.Request = data
-}
-
-func (r *runLog) SetStep(step int) {
-	r.CurStep = step
-}
-
-func (r *runLog) SetError(err error) {
-	if err != nil {
-		r.Error = err.Error()
-	}
-}
-
-func (r *runLog) SetStatus(status string) {
-	r.Status = status
-}
-
-func (r *runLog) SetResponse(data any) {
-	r.Response = data
-}
-
-func (r *runLog) SetResponseTime() {
-	cur := time.Now()
-	r.RespDatetime = cur.Format(LogDatetimeFormat)
-	r.RespTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-r.start.UnixMilli())/1000)
-}
-
-// SetRunTime 计算开始时间和结束时间以及使用时间
-func (r *runLog) SetRunTime() {
-	cur := time.Now()
-	r.StartDatetime = r.start.Format(LogDatetimeFormat)
-	r.EndDatetime = cur.Format(LogDatetimeFormat)
-	r.RunTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-r.start.UnixMilli())/1000)
-}
-
-func (r *runLog) GetString() string {
-	str, _ := json.MarshalToString(r)
-	return str
-}
-
-func (r *runLog) SetStartTime(t time.Time) {
-	r.start = t
-}
-
-func (r *runLog) GetStepErr(index int) StepLog {
-	if index > len(r.StepLogs) {
-		return nil
-	}
-	return r.StepLogs[index]
 }

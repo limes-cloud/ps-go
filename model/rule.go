@@ -8,6 +8,7 @@ import (
 	"ps-go/errors"
 	"ps-go/tools"
 	"ps-go/tools/lock"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,7 @@ var ruleKey = "rule_lock"
 
 type Rule struct {
 	Name       string `json:"name"`
+	Method     string `json:"method"`
 	Rule       string `json:"rule,omitempty"`
 	Version    string `json:"version"`
 	Status     *bool  `json:"status"`
@@ -32,7 +34,9 @@ func (u *Rule) Page(ctx *gin.Context, page, count int, m interface{}, fs ...call
 	var list []Rule
 	var total int64
 
-	db := database(ctx).Table(u.Table()).Select("id,name,operator,operator_id,created_at,updated_at,status,version")
+	db := database(ctx).Table(u.Table()).
+		Select("id,name,method,operator,operator_id,created_at,updated_at,status,version")
+
 	db = gin.GormWhere(db, u.Table(), m)
 	db = exec(db, fs...)
 
@@ -64,9 +68,9 @@ func (u *Rule) CacheKey(key string) string {
 	return fmt.Sprintf("rule_%v", key)
 }
 
-// OneByNameCache 通过name查询缓存
-func (u *Rule) OneByNameCache(ctx *gin.Context, name string) (bool, error) {
-	byteData, err := cache(ctx).Get(ctx, name).Bytes()
+// OneByCache 通过key查询缓存
+func (u *Rule) OneByCache(ctx *gin.Context, key string) (bool, error) {
+	byteData, err := cache(ctx).Get(ctx, key).Bytes()
 	if err != nil {
 		return false, err
 	}
@@ -82,9 +86,12 @@ func (u *Rule) OneByNameCache(ctx *gin.Context, name string) (bool, error) {
 	return false, nil
 }
 
-// OneByName 通过name查询规则
-func (u *Rule) OneByName(ctx *gin.Context, name string) error {
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(name)); is {
+// OneByNameMethod 通过name和method查询规则
+func (u *Rule) OneByNameMethod(ctx *gin.Context, name, method string) error {
+	method = strings.ToUpper(method)
+	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", name, method))
+
+	if is, err := u.OneByCache(ctx, cacheKey); is {
 		return err
 	}
 
@@ -94,45 +101,27 @@ func (u *Rule) OneByName(ctx *gin.Context, name string) error {
 	defer rl.Release()
 
 	// 获取锁之后重新查询缓存
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(name)); is {
+	if is, err := u.OneByCache(ctx, cacheKey); is {
 		return err
 	}
 
 	db := database(ctx).Table(u.Table())
-	if err := db.Where("status=true").Where("name = ?", name).First(u).Error; err != nil {
+	if err := db.Where("name = ? and method = ? and status=true", name, method).First(u).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			cache(ctx).Set(ctx, u.CacheKey(name), "{}", time.Minute*5)
+			cache(ctx).Set(ctx, cacheKey, "{}", time.Minute*5)
 		}
 		return err
 	}
 
 	str, _ := json.MarshalToString(u)
-	cache(ctx).Set(ctx, u.CacheKey(name), str, 24*time.Hour)
+	cache(ctx).Set(ctx, cacheKey, str, 24*time.Hour)
 
 	return nil
 }
 
-// OneByVersionCache 通过version查询缓存
-func (u *Rule) OneByVersionCache(ctx *gin.Context, version string) (bool, error) {
-	byteData, err := cache(ctx).Get(ctx, version).Bytes()
-	if err != nil {
-		return false, err
-	}
-
-	if err = json.Unmarshal(byteData, u); err != nil {
-		return false, err
-	}
-
-	if u.ID == 0 {
-		return true, gorm.ErrRecordNotFound
-	}
-
-	return false, nil
-}
-
 // OneByVersion 通过version查询规则
 func (u *Rule) OneByVersion(ctx *gin.Context, version string) error {
-	if is, err := u.OneByNameCache(ctx, u.CacheKey(version)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(version)); is {
 		return err
 	}
 
@@ -142,7 +131,7 @@ func (u *Rule) OneByVersion(ctx *gin.Context, version string) error {
 	defer rl.Release()
 
 	// 获取锁之后重新查询缓存
-	if is, err := u.OneByVersionCache(ctx, u.CacheKey(version)); is {
+	if is, err := u.OneByCache(ctx, u.CacheKey(version)); is {
 		return err
 	}
 
@@ -170,10 +159,16 @@ func (u *Rule) OneByID(ctx *gin.Context, id int64) error {
 
 // Create 创建规则
 func (u *Rule) Create(ctx *gin.Context) error {
+	u.Method = strings.ToUpper(u.Method)
+
+	// 延迟双删
+	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, u.Method))
+	delayDelCache(ctx, u.CacheKey(cacheKey))
+
 	db := database(ctx)
 	// 查看当前是否存在规则
 	count, _ := u.Count(ctx, func(db *gorm.DB) *gorm.DB {
-		return db.Table(u.Table()).Where("name = ?", u.Name)
+		return db.Table(u.Table()).Where("name = ? and method = ?", u.Name, u.Method)
 	})
 
 	// 创建规则,第一个规则则直接使用
@@ -186,10 +181,13 @@ func (u *Rule) Create(ctx *gin.Context) error {
 	// 判断是否超过保存最大的副本数量
 	if count > consts.RuleHistoryCount {
 		rule := Rule{}
-		if err := db.Table(u.Table()).Order("id desc").Offset(consts.RuleHistoryCount - 1).Limit(1).First(&rule).Error; err == nil {
-			db.Table(u.Table()).Where("id <= ? and status = false", rule.ID).Delete(&Rule{})
-		} else {
-			fmt.Println(err.Error())
+		if err := db.Table(u.Table()).Where("name = ? and method = ?", u.Name, u.Method).
+			Order("id desc").Offset(consts.RuleHistoryCount - 1).Limit(1).First(&rule).Error; err == nil {
+
+			db.Table(u.Table()).
+				Where("id <= ? and name = ? and method = ? and status = false", rule.ID, u.Name, u.Method).
+				Delete(&Rule{})
+
 		}
 	}
 
