@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"github.com/limeschool/gin"
 	"ps-go/engine"
+	"ps-go/tools"
 	"ps-go/tools/pool"
 	"time"
 )
@@ -10,8 +12,10 @@ import (
 func ProcessSchedule(ctx *gin.Context) {
 	startTime := time.Now()
 
-	eg := engine.Get()
+	trx := NewTrx()
+	ctx.Writer.Header().Set("Trx", trx)
 
+	eg := engine.Get()
 	// 获取调度规则
 	rule, err := eg.LoadRule(ctx)
 	if err != nil {
@@ -47,4 +51,8 @@ func ProcessSchedule(ctx *gin.Context) {
 
 	// 输出
 	ctx.RespJson(data)
+}
+
+func NewTrx() string {
+	return fmt.Sprintf("TRX%v", tools.UUID())
 }

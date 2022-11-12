@@ -29,6 +29,8 @@ type runtime struct {
 	response     *responseChan   // 返回通道
 	err          *errorChan      // 错误通道
 	version      string          // 当前运行的版本
+	isFinish     bool            // 是否成功
+	trx          string          // 请求唯一标志
 
 	runStore     RunStore     // 运行存储器
 	store        Store        // 全局存储器
@@ -110,13 +112,15 @@ func (r *runtime) Run() {
 			}
 			r.retry++
 		} else {
-			r.componentLog.SetError(err)
 			r.err.Set(err)
 		}
+
+		// 设置执行错误日志
+		r.componentLog.SetError(err)
 		return
 	}
 
-	// 顺利执行完成
+	r.isFinish = true // 顺利执行完成
 	r.runStore.SetData(r.component.OutputName, resp)
 	if r.component.IsCache {
 		cache.setCache(resp)

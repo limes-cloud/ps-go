@@ -4,6 +4,7 @@ import (
 	"log"
 	"ps-go/engine"
 	"ps-go/rooter"
+	"ps-go/tools/hash"
 	"ps-go/tools/pool"
 )
 
@@ -13,6 +14,8 @@ func main() {
 	pool.Init()
 	// 调度引擎初始化
 	engine.Init()
+	// 初始化hash一致性算法
+	hash.Init()
 	// api 初始化
 	rg := rooter.Init()
 

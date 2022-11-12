@@ -185,11 +185,11 @@ func (s *stepLog) NewComponentLog(step, action int) ComponentLog {
 type componentLog struct {
 	lock sync.RWMutex
 
-	Version    string `json:"version"`         //执行的版本
-	Step       int    `json:"step"`            //当前行数
-	Action     int    `json:"action"`          //当前列数
-	RetryCount int    `json:"retry_count"`     //重试次数
-	Error      string `json:"error,omitempty"` //错误原因
+	Version    string `json:"version,omitempty"` //执行的版本
+	Step       int    `json:"step"`              //当前行数
+	Action     int    `json:"action"`            //当前列数
+	RetryCount int    `json:"retry_count"`       //重试次数
+	Error      string `json:"error,omitempty"`   //错误原因
 
 	RunTime       string `json:"run_time"` //运行时间
 	StartDatetime string `json:"start_datetime"`

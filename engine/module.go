@@ -21,6 +21,7 @@ func GetGlobalJsModule(r *runtime) any {
 		"log":   getLogModule(r),
 		"data":  getStoreModule(r),
 		"logId": getContextLogID(r),
+		"trx":   getTrxModule(r),
 	}
 }
 
@@ -260,6 +261,17 @@ func getStoreModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Val
 func getContextLogID(r *runtime) func(call otto.FunctionCall) otto.Value {
 	return func(call otto.FunctionCall) otto.Value {
 		if value, err := call.Otto.ToValue(r.ctx.TraceID); err != nil {
+			return otto.Value{}
+		} else {
+			return value
+		}
+	}
+}
+
+// getTrxModule 获取请求唯一id
+func getTrxModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+	return func(call otto.FunctionCall) otto.Value {
+		if value, err := call.Otto.ToValue(r.trx); err != nil {
 			return otto.Value{}
 		} else {
 			return value

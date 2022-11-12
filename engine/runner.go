@@ -24,6 +24,7 @@ type runner struct {
 	count   int    //总的执行步数
 	index   int    //当前执行步数
 	version string //执行流程的版本
+	trx     string //请求唯一表示
 
 	wg       *sync.WaitGroup //运行时锁
 	response *responseChan   //返回通道
@@ -104,6 +105,7 @@ func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
 	com := r.rule.Components[r.index][action]
 	return &runtime{
 		stepLog:      log,
+		trx:          r.trx,
 		wg:           r.wg,
 		component:    com,
 		response:     r.response,
