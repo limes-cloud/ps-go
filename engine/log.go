@@ -19,7 +19,7 @@ type Logger interface {
 	NewStepLog(step, ac int) StepLog
 	GetString() string
 	SetStartTime(time.Time)
-	GetStepErr(int) StepLog
+	GetStepLog(int) StepLog
 	SetVersion(version string)
 }
 
@@ -27,6 +27,8 @@ type StepLog interface {
 	SetRunTime(t time.Time)
 	SetError(err error)
 	NewComponentLog(step, action int) ComponentLog
+	GetComponentLog(index int) ComponentLog
+	GetComponentErrorNames() []string
 }
 
 type ComponentLog interface {
@@ -60,6 +62,7 @@ type runLog struct {
 
 	Version string `json:"version"` //执行的版本
 	LogId   string `json:"log_id"`  //链路id
+	Trx     string `json:"trx"`     //唯一请求id
 	Step    int    `json:"step"`    //总步数
 
 	Request  any `json:"request"`  //请求参数
@@ -138,7 +141,7 @@ func (r *runLog) SetVersion(v string) {
 	r.Version = v
 }
 
-func (r *runLog) GetStepErr(index int) StepLog {
+func (r *runLog) GetStepLog(index int) StepLog {
 	if index > len(r.StepLogs) {
 		return nil
 	}
@@ -168,6 +171,23 @@ func (s *stepLog) SetRunTime(t time.Time) {
 	s.StartDatetime = t.Format(LogDatetimeFormat)
 	s.EndDatetime = cur.Format(LogDatetimeFormat)
 	s.RunTime = fmt.Sprintf("%vs", float64(time.Now().UnixMilli()-t.UnixMilli())/1000)
+}
+
+func (s *stepLog) GetComponentLog(index int) ComponentLog {
+	if index >= len(s.ComponentLogs) {
+		return nil
+	}
+	return s.ComponentLogs[index]
+}
+
+func (s *stepLog) GetComponentErrorNames() []string {
+	var arr []string
+	for _, com := range s.ComponentLogs {
+		if com.Error != "" {
+			arr = append(arr, com.Name)
+		}
+	}
+	return arr
 }
 
 func (s *stepLog) NewComponentLog(step, action int) ComponentLog {

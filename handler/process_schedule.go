@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"github.com/limeschool/gin"
+	"ps-go/consts"
 	"ps-go/engine"
 	"ps-go/tools"
 	"ps-go/tools/pool"
@@ -13,7 +14,7 @@ func ProcessSchedule(ctx *gin.Context) {
 	startTime := time.Now()
 
 	trx := NewTrx()
-	ctx.Writer.Header().Set("Trx", trx)
+	ctx.Writer.Header().Set(consts.ProcessScheduleTrx, trx)
 
 	eg := engine.Get()
 	// 获取调度规则

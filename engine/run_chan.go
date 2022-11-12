@@ -51,6 +51,7 @@ type errorChan struct {
 }
 
 func (r *errorChan) Close() {
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	if r.isClose {

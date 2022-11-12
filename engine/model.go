@@ -16,7 +16,6 @@ type Rule struct {
 }
 
 type Request struct {
-	Method string               `json:"method"` //请求方法
 	Type   string               `json:"type"`   //body数据类型
 	Query  map[string]FieldRule `json:"query"`  //query参数
 	Body   map[string]FieldRule `json:"body"`   //body参数

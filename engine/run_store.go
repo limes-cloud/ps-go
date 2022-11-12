@@ -10,11 +10,18 @@ type RunStore interface {
 	SetData(key string, val any)
 	GetData(key string) any
 	GetMatchData(m any) any
+	GetAll() map[string]any
 }
 
 type runStore struct {
 	data map[string]any
 	lock sync.RWMutex
+}
+
+func (r *runStore) GetAll() map[string]any {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+	return r.data
 }
 
 // SetData 递归设置数据

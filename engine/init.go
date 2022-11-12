@@ -2,6 +2,8 @@ package engine
 
 import (
 	"github.com/limeschool/gin"
+	"ps-go/consts"
+	"strings"
 	"sync"
 )
 
@@ -48,10 +50,15 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 	run := runnerPool.Get().(*runner)
 	runnerPool.Put(run)
 
+	path := ctx.Request.URL.Path
+	path = strings.TrimLeft(path, consts.ApiPrefix)
+
+	run.trx = ctx.Writer.Header().Get(consts.ProcessScheduleTrx)
 	run.version = rule.Version
 	run.rule = rule
 	run.count = len(rule.Components)
 	run.index = 0
+	run.curIndex = 0
 	run.runStore = rStore
 	run.wg = &sync.WaitGroup{}
 	run.store = e.Store
@@ -65,6 +72,8 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 		lock: sync.RWMutex{},
 	}
 
+	run.path = path
+	run.method = ctx.Request.Method
 	// 初始化日志
 	run.NewLogger()
 

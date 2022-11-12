@@ -204,8 +204,10 @@ func (u *Rule) SwitchVersion(ctx *gin.Context) error {
 	u.Status = tools.Bool(true)
 
 	db := database(ctx).Table(u.Table())
+
 	// 延迟双删
-	delayDelCache(ctx, u.CacheKey(u.Name))
+	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, rule.Method))
+	delayDelCache(ctx, u.CacheKey(cacheKey))
 
 	// 进行版本切换，使用指定id版本
 	return db.Transaction(func(tx *gorm.DB) error {

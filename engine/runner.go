@@ -1,10 +1,10 @@
 package engine
 
 import (
-	"fmt"
 	"github.com/limeschool/gin"
 	"go.uber.org/zap"
 	"ps-go/errors"
+	"ps-go/model"
 	"ps-go/tools/pool"
 	"sync"
 	"time"
@@ -20,11 +20,14 @@ type Runner interface {
 }
 
 type runner struct {
-	rule    *Rule  //当前执行的规则
-	count   int    //总的执行步数
-	index   int    //当前执行步数
-	version string //执行流程的版本
-	trx     string //请求唯一表示
+	rule     *Rule  //当前执行的规则
+	count    int    //总的执行层数
+	index    int    //执行索引，控制流程
+	curIndex int    //当前执行层数
+	version  string //执行流程的版本
+	trx      string //请求唯一表示
+	method   string //请求方法
+	path     string //请求路径
 
 	wg       *sync.WaitGroup //运行时锁
 	response *responseChan   //返回通道
@@ -51,20 +54,21 @@ func (r *runner) Run() {
 
 	for r.index < r.count {
 		// 设置执行的步数
-		r.logger.SetStep(r.index + 1)
+		r.logger.SetStep(r.curIndex + 1)
 
 		// 获取当前执行的组件列表
-		componentsCount := len(r.rule.Components[r.index])
+		componentsCount := len(r.rule.Components[r.curIndex])
 
 		//当前没有需要执行的则直接跳过
 		if componentsCount == 0 {
 			r.index++
+			r.curIndex++
 			continue
 		}
 
 		// 执行组件脚本/api
 		r.RunComponent(componentsCount)
-
+		r.curIndex++
 		r.index++
 	}
 
@@ -78,7 +82,7 @@ func (r *runner) Run() {
 }
 
 func (r *runner) RunComponent(count int) {
-	log := r.logger.NewStepLog(r.index+1, count)
+	log := r.logger.NewStepLog(r.curIndex+1, count)
 	defer log.SetRunTime(time.Now())
 
 	// 设置需要执行的组件数量
@@ -87,11 +91,14 @@ func (r *runner) RunComponent(count int) {
 	for i := 0; i < count; i++ {
 		rt, err := r.NewRuntime(log, i)
 		if err != nil {
-
 			// 设置执行层错误
 			log.SetError(err)
-
 			r.err.Set(err)
+			continue
+		}
+		// 异常重启时，存在同一层执行成功的组件，不在执行
+		if rt.isFinish {
+			r.wg.Done()
 			continue
 		}
 		_ = pool.Get().Invoke(rt)
@@ -102,7 +109,7 @@ func (r *runner) RunComponent(count int) {
 }
 
 func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
-	com := r.rule.Components[r.index][action]
+	com := r.rule.Components[r.curIndex][action]
 	return &runtime{
 		stepLog:      log,
 		trx:          r.trx,
@@ -110,7 +117,7 @@ func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {
 		component:    com,
 		response:     r.response,
 		ctx:          r.ctx,
-		step:         r.index,
+		step:         r.curIndex,
 		action:       action,
 		maxRetry:     com.RetryMaxCount,
 		retryMaxWait: com.RetryMaxWait,
@@ -126,6 +133,7 @@ func (r *runner) NewLogger() {
 		LogId:   r.ctx.TraceID,
 		Step:    r.count,
 		Version: r.version,
+		Trx:     r.trx,
 	}
 }
 
@@ -158,7 +166,9 @@ func (r *runner) WaitError() {
 	var err error
 
 	// 设置请求状态
-	defer r.SetStatus(err)
+	defer func() {
+		r.SetStatus(err)
+	}()
 
 	if r.err.IsClose() {
 		return
@@ -210,15 +220,57 @@ func (r *runner) Response() any {
 	return resp
 }
 
+func (r *runner) GetRuleToString() string {
+	// 由于getMatchData 修改了一些值，所以不能直接取挂载的rule
+	rule, _ := r.store.LoadRule(r.ctx)
+	str, _ := json.MarshalToString(rule)
+	return str
+}
+
+func (r *runner) GetDataToString() string {
+	str, _ := json.MarshalToString(r.runStore.GetAll())
+	return str
+}
+
+func (r *runner) GetComponentErrorNames() string {
+	log := r.logger.GetStepLog(r.curIndex)
+	if log == nil {
+		r.ctx.Log.Error("GetComponentErrorNames Error", zap.Any("index", r.curIndex))
+		return "[]"
+	}
+
+	names := log.GetComponentErrorNames()
+	str, _ := json.MarshalToString(names)
+	return str
+}
+
 func (r *runner) Suspend(err error) {
+	return
 	if !r.rule.Suspend {
 		return
 	}
 
-	// 在设置了挂起的情况下，非中断错误，全部挂起
-	if e, ok := err.(*Error); ok && e.Code != ActiveBreakErrorCode && e.Code != BreakErrorCode {
-		// todo suspend
-		fmt.Println("====suspend 挂起====")
+	// 在设置了挂起的情况下，中断错误则直接返回
+	if e, ok := err.(*Error); !ok || e.Code == ActiveBreakErrorCode || e.Code == BreakErrorCode {
+		return
+	}
+
+	// 进行任务存库
+	suspendLog := model.SuspendLog{
+		Trx:          r.trx,
+		LogID:        r.ctx.TraceID,
+		Method:       r.method,
+		Path:         r.path,
+		Version:      r.version,
+		Step:         r.count,
+		CurStep:      r.curIndex,
+		ErrMsg:       err.Error(),
+		Rule:         r.GetRuleToString(),
+		Data:         r.GetDataToString(),
+		ErrComponent: r.GetComponentErrorNames(),
+	}
+	if err = suspendLog.Create(r.ctx); err != nil {
+		r.ctx.Log.Error("流程存储失败：%v", zap.Any("trx", r.trx), zap.Any("err", err))
 	}
 }
 
@@ -246,10 +298,28 @@ func (r *runner) SetStatus(err error) {
 	}
 }
 
-// todo SaveLog
 func (r *runner) SaveLog() {
-	//r.logger
-	fmt.Println(r.logger.GetString())
+	return
+
+	msg := r.logger.GetString()
+	r.ctx.Log.Info("link log", zap.Any("", msg))
+
+	if !r.rule.Record {
+		return
+	}
+
+	// 存储请求链路
+	log := model.RunLog{
+		Trx:     r.trx,
+		LogID:   r.ctx.TraceID,
+		Method:  r.method,
+		Path:    r.path,
+		Version: r.version,
+		Msg:     msg,
+	}
+	if err := log.Create(r.ctx); err != nil {
+		r.ctx.Log.Error("执行流程存储失败：%v", zap.Any("trx", r.trx), zap.Any("err", err))
+	}
 }
 
 func (r *runner) SetRequestLog(t time.Time, data any) {
@@ -260,7 +330,7 @@ func (r *runner) SetRequestLog(t time.Time, data any) {
 
 func (r *runner) SetError(err error) {
 	r.logger.SetError(err)
-	log := r.logger.GetStepErr(r.index)
+	log := r.logger.GetStepLog(r.curIndex)
 	if log != nil {
 		log.SetError(err)
 	}
