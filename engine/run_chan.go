@@ -5,13 +5,13 @@ import (
 )
 
 type responseChan struct {
-	response chan responseData
+	response chan map[string]any
 	isClose  bool
 	lock     sync.RWMutex
 }
 
 // SetAndClose 只接收一次返回信息信息
-func (r *responseChan) SetAndClose(data responseData) {
+func (r *responseChan) SetAndClose(data map[string]any) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	if r.isClose {
@@ -38,10 +38,9 @@ func (r *responseChan) IsClose() bool {
 	return r.isClose
 }
 
-func (r *responseChan) Get() (responseData, bool) {
-
+func (r *responseChan) Get() (map[string]any, bool) {
 	if r.isClose {
-		return responseData{}, false
+		return nil, false
 	}
 	data, is := <-r.response
 	return data, is
@@ -83,10 +82,4 @@ func (r *errorChan) Get() (error, bool) {
 	}
 	err, is := <-r.err
 	return err, is
-}
-
-func (r *errorChan) IsClose() bool {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-	return r.isClose
 }

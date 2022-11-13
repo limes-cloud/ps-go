@@ -17,13 +17,16 @@ import (
 // GetGlobalJsModule 全局module 函数
 func GetGlobalJsModule(r *runtime) any {
 	return gin.H{
-		"request": RequestModule(r),       //发送请求
-		"log":     LogModule(r),           //打印日志
-		"data":    StoreModule(r),         //存储数据
-		"logId":   LogIDModule(r),         //获取logId
-		"trx":     TrxModule(r),           //获取trx
-		"suspend": ActiveSuspendModule(r), //主动挂起
-		"break":   ActiveBreakModule(r),   //主动中断
+		"request":  RequestModule(r),       //发送请求
+		"log":      LogModule(r),           //打印日志
+		"data":     StoreModule(r),         //存储数据
+		"logId":    LogIDModule(r),         //获取logId
+		"trx":      TrxModule(r),           //获取trx
+		"suspend":  ActiveSuspendModule(r), //主动挂起
+		"break":    ActiveBreakModule(r),   //主动中断
+		"response": ResponseModule(r),
+		//加解密相关api
+
 	}
 }
 
@@ -314,6 +317,28 @@ func ActiveSuspendModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 			// 挂起
 			panic(NewActiveSuspendError(call.Argument(0).String(), call.Argument(1).String()))
 		}
+		return otto.Value{}
+	}
+}
+
+// ResponseModule 主动返回请求
+func ResponseModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+	return func(call otto.FunctionCall) otto.Value {
+		if len(call.ArgumentList) == 0 {
+			panic(NewModuleArgError("response method argument not null"))
+		}
+
+		if !call.Argument(0).IsObject() {
+			panic(NewModuleArgError("response method argument must is object"))
+		}
+
+		respData := map[string]any{}
+		byteData, _ := call.Argument(0).MarshalJSON()
+		_ = json.Unmarshal(byteData, &respData)
+
+		// 将返回的值设置到存储器中
+		r.response.SetAndClose(respData)
+
 		return otto.Value{}
 	}
 }

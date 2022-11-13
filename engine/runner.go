@@ -47,12 +47,6 @@ type runner struct {
 	logger   Logger   //运行日志记录器
 }
 
-type responseData struct {
-	Code any `json:"code"`
-	Msg  any `json:"msg"`
-	Data any `json:"data"`
-}
-
 func (r *runner) Run() {
 	defer func() { // 防止意外Panic
 		if p := recover(); p != nil {
@@ -165,13 +159,7 @@ func (r *runner) WaitResponse() {
 	}
 	//defer r.response.Close()
 
-	r.runStore.SetData("response", map[string]any{
-		"body": map[string]any{
-			"code": data.Code,
-			"msg":  data.Msg,
-			"data": data.Data,
-		},
-	})
+	r.runStore.SetData("response", map[string]any{"body": data})
 }
 
 // WaitError 监听当前流程错误事件，只监听一次，并且中断流程执行
@@ -203,15 +191,18 @@ func (r *runner) WaitError() {
 	}
 }
 
+// SetStep 设置流程当前的层数
 func (r *runner) SetStep(index int) {
 	r.index = index
 }
 
+// SetMethodAndPath 设置组件的请求方法以及path
 func (r *runner) SetMethodAndPath(m, p string) {
 	r.path = p
 	r.method = m
 }
 
+// SetStepComponentRetry 设置需要重新执行的组件
 func (r *runner) SetStepComponentRetry(index int, names []string) error {
 	if len(r.rule.Components) <= index {
 		return errors.New("重试索引值大于组件层数")
@@ -224,20 +215,22 @@ func (r *runner) SetStepComponentRetry(index int, names []string) error {
 	return nil
 }
 
+// ResponseError 错误信息分类发送到返回器
 func (r *runner) ResponseError(err error) {
 	if e, ok := err.(*gin.CustomError); ok {
-		r.response.SetAndClose(responseData{Code: e.Code, Msg: e.Msg})
+		r.response.SetAndClose(map[string]any{"code": e.Code, "msg": e.Msg})
 		return
 	}
 
 	if e, ok := err.(*Error); ok {
-		r.response.SetAndClose(responseData{Code: e.Code, Msg: e.Msg})
+		r.response.SetAndClose(map[string]any{"code": e.Code, "msg": e.Msg})
 		return
 	}
 
-	r.response.SetAndClose(responseData{Code: errors.DefaultCode, Msg: err.Error()})
+	r.response.SetAndClose(map[string]any{"code": errors.DefaultCode, "msg": err.Error()})
 }
 
+// Response 进行数据返回
 func (r *runner) Response() any {
 	var resp any
 	body := r.rule.Response.Body
@@ -249,16 +242,19 @@ func (r *runner) Response() any {
 	return resp
 }
 
+// GetRuleToString 获取规则
 func (r *runner) GetRuleToString() string {
 	str, _ := json.MarshalToString(r.copyRule)
 	return str
 }
 
+// GetDataToString 获取上下文数据
 func (r *runner) GetDataToString() string {
 	str, _ := json.MarshalToString(r.runStore.GetAll())
 	return str
 }
 
+// GetComponentErrorNames 获取挂起时错误的组件名称
 func (r *runner) GetComponentErrorNames() string {
 	log := r.logger.GetStepLog(r.curIndex)
 	if log == nil {
@@ -271,6 +267,7 @@ func (r *runner) GetComponentErrorNames() string {
 	return str
 }
 
+// Suspend 服务挂起
 func (r *runner) Suspend(err error) {
 	if !r.rule.Suspend {
 		return
@@ -305,6 +302,7 @@ func (r *runner) Suspend(err error) {
 	}
 }
 
+// SetStatus 设置执行状态
 func (r *runner) SetStatus(err error) {
 	if err == nil {
 		r.logger.SetStatus(RunSuccess)
@@ -329,15 +327,17 @@ func (r *runner) SetStatus(err error) {
 	}
 }
 
+// SaveLog 存储请求链日志
 func (r *runner) SaveLog() {
 
-	msg := r.logger.GetString()
-	r.ctx.Log.Info("link log", zap.Any("", msg))
+	msg := r.logger.Get()
+	r.ctx.Log.Info("link log", zap.Any("data", msg))
 
 	if !r.rule.Record {
 		return
 	}
 
+	msgStr, _ := json.MarshalToString(msg)
 	// 存储请求链路
 	log := model.RunLog{
 		Trx:     r.trx,
@@ -345,7 +345,7 @@ func (r *runner) SaveLog() {
 		Method:  r.method,
 		Path:    r.path,
 		Version: r.version,
-		Msg:     msg,
+		Msg:     msgStr,
 		Step:    r.count,
 		CurStep: r.curIndex + 1,
 		Status:  r.logger.GetStatus(),
@@ -356,12 +356,14 @@ func (r *runner) SaveLog() {
 	}
 }
 
+// SetRequestLog 设置执行开始请求数据
 func (r *runner) SetRequestLog(t time.Time, data any) {
 	r.logger.SetStartTime(t)
 	r.logger.SetRequest(data)
 	r.logger.SetVersion(r.version)
 }
 
+// SetError 设置流程执行error原因
 func (r *runner) SetError(err error) {
 	r.logger.SetError(err)
 	log := r.logger.GetStepLog(r.curIndex)

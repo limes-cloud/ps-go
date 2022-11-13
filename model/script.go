@@ -99,7 +99,7 @@ func (u *Script) OneByName(ctx *gin.Context, name string) error {
 	}
 
 	db := database(ctx).Table(u.Table())
-	if err := db.Where("status=true").Where("name = ?", name).First(u).Error; err != nil {
+	if err := db.Where("status=true").Where("name=?", name).First(u).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			cache(ctx).Set(ctx, u.CacheKey(name), "{}", time.Minute*5)
 		}
@@ -187,12 +187,14 @@ func (u *Script) Create(ctx *gin.Context) error {
 
 // SwitchVersion 切换使用版本
 func (u *Script) SwitchVersion(ctx *gin.Context) error {
-	script := Script{}
-	if err := script.OneByID(ctx, u.ID); err != nil {
+
+	if err := u.OneByID(ctx, u.ID); err != nil {
 		return err
 	}
 
-	u.Status = tools.Bool(true)
+	if *u.Status == true {
+		return nil
+	}
 
 	db := database(ctx).Table(u.Table())
 	// 延迟双删
@@ -200,10 +202,12 @@ func (u *Script) SwitchVersion(ctx *gin.Context) error {
 
 	// 进行版本切换，使用指定id版本
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Updates(u).Error; err != nil {
+		if err := tx.Where("name=", u.Name).Update("status", false).Error; err != nil {
 			return err
 		}
-		return tx.Where("id != ?", u.ID).Update("status", false).Error
+
+		u.Status = tools.Bool(true)
+		return tx.Where("id = ?", u.ID).Update("status", true).Error
 	})
 }
 

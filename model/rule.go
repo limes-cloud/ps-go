@@ -106,7 +106,7 @@ func (u *Rule) OneByNameMethod(ctx *gin.Context, name, method string) error {
 	}
 
 	db := database(ctx).Table(u.Table())
-	if err := db.Where("name = ? and method = ? and status=true", name, method).First(u).Error; err != nil {
+	if err := db.Where("name=? and method=? and status=true", name, method).First(u).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			cache(ctx).Set(ctx, cacheKey, "{}", time.Minute*5)
 		}
@@ -196,25 +196,27 @@ func (u *Rule) Create(ctx *gin.Context) error {
 
 // SwitchVersion 切换使用版本
 func (u *Rule) SwitchVersion(ctx *gin.Context) error {
-	rule := Rule{}
-	if err := rule.OneByID(ctx, u.ID); err != nil {
+	if err := u.OneByID(ctx, u.ID); err != nil {
 		return err
 	}
 
-	u.Status = tools.Bool(true)
+	if *u.Status == true {
+		return nil
+	}
 
 	db := database(ctx).Table(u.Table())
 
 	// 延迟双删
-	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", rule.Name, rule.Method))
+	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, u.Method))
 	delayDelCache(ctx, cacheKey)
 
 	// 进行版本切换，使用指定id版本
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Updates(u).Error; err != nil {
+		if err := tx.Where("name=? and method=?", u.Name, u.Method).
+			Update("status", false).Error; err != nil {
 			return err
 		}
-		return tx.Where("id != ?", u.ID).Update("status", false).Error
+		return tx.Where("id = ?", u.ID).Update("status", true).Error
 	})
 }
 

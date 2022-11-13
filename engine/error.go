@@ -19,6 +19,7 @@ const (
 	ActiveSuspendErrorCode    = "110009"
 	BreakErrorCode            = "110010"
 	SuspendErrorCode          = "110011"
+	ActiveResponseCode        = "110012"
 )
 
 var (
@@ -135,4 +136,9 @@ func NewActiveSuspendError(code, msg string) error {
 		Code: code,
 		Msg:  msg,
 	}
+}
+
+// NewActiveResponse 主动返回
+func NewActiveResponse() error {
+	return &Error{Code: ActiveResponseCode, Msg: ""}
 }

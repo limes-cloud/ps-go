@@ -72,7 +72,7 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 	run.wg = &sync.WaitGroup{}
 	run.store = e.Store
 	run.response = &responseChan{
-		response: make(chan responseData),
+		response: make(chan map[string]any),
 		lock:     sync.RWMutex{},
 	}
 	run.ctx = ctx
