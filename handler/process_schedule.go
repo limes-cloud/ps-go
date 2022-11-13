@@ -7,6 +7,7 @@ import (
 	"ps-go/engine"
 	"ps-go/tools"
 	"ps-go/tools/pool"
+	"strings"
 	"time"
 )
 
@@ -17,8 +18,11 @@ func ProcessSchedule(ctx *gin.Context) {
 	ctx.Writer.Header().Set(consts.ProcessScheduleTrx, trx)
 
 	eg := engine.Get()
+
 	// 获取调度规则
-	rule, err := eg.LoadRule(ctx)
+	path := ctx.Request.URL.Path
+	path = strings.TrimLeft(path, consts.ApiPrefix)
+	rule, err := eg.LoadRule(ctx, ctx.Request.Method, path)
 	if err != nil {
 		ctx.RespError(TransferError(err))
 		return
@@ -37,8 +41,10 @@ func ProcessSchedule(ctx *gin.Context) {
 
 	// 创建运行器
 	runner := eg.NewRunner(ctx, rule, runStore)
+	runner.SetMethodAndPath(ctx.Request.Method, path)
 
 	// 设置执行日志
+	runner.NewLogger()
 	runner.SetRequestLog(startTime, requestInfo)
 
 	// 执行服务

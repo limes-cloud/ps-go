@@ -1,20 +1,24 @@
 package engine
 
-import "github.com/limeschool/gin"
+import (
+	"github.com/limeschool/gin"
+	"strings"
+)
 
 const (
-	SystemPanicErrorCode      = 110000
-	RunScriptErrorCode        = 110001
-	RunScriptFuncErrorCode    = 110002
-	ScriptFuncReturnErrorCode = 110003
-	ConditionErrorCode        = 110004
-	ModuleArgErrorCode        = 110005
-	RequestErrorCode          = 110006
-	NetworkErrorCode          = 110007
-	ActiveBreakErrorCode      = 110008
-	ActiveSuspendErrorCode    = 110009
-	BreakErrorCode            = 110010
-	SuspendErrorCode          = 110011
+	DefaultErrorCode          = "000400"
+	SystemPanicErrorCode      = "110000"
+	RunScriptErrorCode        = "110001"
+	RunScriptFuncErrorCode    = "110002"
+	ScriptFuncReturnErrorCode = "110003"
+	ConditionErrorCode        = "110004"
+	ModuleArgErrorCode        = "110005"
+	RequestErrorCode          = "110006"
+	NetworkErrorCode          = "110007"
+	ActiveBreakErrorCode      = "110008"
+	ActiveSuspendErrorCode    = "110009"
+	BreakErrorCode            = "110010"
+	SuspendErrorCode          = "110011"
 )
 
 var (
@@ -26,7 +30,7 @@ var (
 )
 
 type Error struct {
-	Code int    `json:"code"` //错误编码
+	Code string `json:"code"` //错误编码
 	Msg  string `json:"msg"`  //错误描述
 }
 
@@ -123,35 +127,12 @@ func NewSuspendError(msg string) error {
 }
 
 // NewActiveSuspendError 主动中断错误
-func NewActiveSuspendError(msg string) error {
+func NewActiveSuspendError(code, msg string) error {
+	if strings.Trim(code, " ") == "" {
+		code = ActiveSuspendErrorCode
+	}
 	return &Error{
-		Code: ActiveSuspendErrorCode,
+		Code: code,
 		Msg:  msg,
 	}
 }
-
-//
-//func (e *EngineError) setDesc(tp string) {
-//	switch tp {
-//	case RunActiveSuspend:
-//		e.Desc = "主动挂起"
-//	case RunErrorSuspend:
-//		e.Desc = "错误挂起"
-//	case RunErrorBreak:
-//		e.Desc = "错误中断"
-//	case RunActiveBreak:
-//		e.Desc = "主动中断"
-//	case RunSuccess:
-//		e.Desc = "执行成功"
-//	}
-//}
-//
-//func NewError(tp string, msg string) error {
-//	e := &EngineError{
-//		Type: tp,
-//		Msg:  msg,
-//		Code: DefaultCode,
-//	}
-//	e.setDesc(tp)
-//	return e
-//}

@@ -1,6 +1,9 @@
 package model
 
-import "github.com/limeschool/gin"
+import (
+	"github.com/limeschool/gin"
+	"gorm.io/gorm"
+)
 
 type SuspendLog struct {
 	gin.CreateModel
@@ -11,6 +14,7 @@ type SuspendLog struct {
 	LogID        string `json:"log_id"`        //日志id
 	Step         int    `json:"step"`          //总步数
 	CurStep      int    `json:"cur_step"`      //当前执行步
+	ErrCode      string `json:"err_code"`      //错误码
 	ErrMsg       string `json:"err_msg"`       //错误原因
 	Rule         string `json:"rule"`          //流程规则 map
 	Data         string `json:"data"`          //流程上下文数据 map
@@ -26,7 +30,15 @@ func (s *SuspendLog) Create(ctx *gin.Context) error {
 }
 
 func (s *SuspendLog) DeleteByTrx(ctx *gin.Context, trx string) error {
-	return database(ctx).Table(s.Table()).Delete(s, "trx = ?", trx).Error
+	db := database(ctx)
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(s.Table()).Delete(s, "trx = ?", trx).Error; err != nil {
+			return err
+		}
+		log := RunLog{}
+		return tx.Table(log.Table(trx)).Delete(&log, "trx = ?", trx).Error
+	})
+
 }
 
 func (s *SuspendLog) DeleteByID(ctx *gin.Context, id int64) error {

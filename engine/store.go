@@ -2,10 +2,8 @@ package engine
 
 import (
 	"github.com/limeschool/gin"
-	"ps-go/consts"
 	"ps-go/errors"
 	"ps-go/model"
-	"strings"
 )
 
 type store struct {
@@ -16,17 +14,14 @@ func NewStore() *store {
 }
 
 type Store interface {
-	LoadRule(ctx *gin.Context) (*Rule, error)
+	LoadRule(ctx *gin.Context, method, path string) (*Rule, error)
 	LoadScript(ctx *gin.Context, name string) (string, string, error)
 }
 
 // LoadRule 获取指定规则
-func (s *store) LoadRule(ctx *gin.Context) (*Rule, error) {
-	path := ctx.Request.URL.Path
-	path = strings.TrimLeft(path, consts.ApiPrefix)
-
+func (s *store) LoadRule(ctx *gin.Context, method, path string) (*Rule, error) {
 	rule := model.Rule{}
-	if err := rule.OneByNameMethod(ctx, path, ctx.Request.Method); err != nil {
+	if err := rule.OneByNameMethod(ctx, path, method); err != nil {
 		return nil, errors.NewF("不存在流程：%v->%v", ctx.Request.Method, path)
 	}
 

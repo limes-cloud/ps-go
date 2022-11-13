@@ -17,18 +17,35 @@ import (
 // GetGlobalJsModule 全局module 函数
 func GetGlobalJsModule(r *runtime) any {
 	return gin.H{
-		"http":  getRequestModule(r),
-		"log":   getLogModule(r),
-		"data":  getStoreModule(r),
-		"logId": getContextLogID(r),
-		"trx":   getTrxModule(r),
+		"request": RequestModule(r),       //发送请求
+		"log":     LogModule(r),           //打印日志
+		"data":    StoreModule(r),         //存储数据
+		"logId":   LogIDModule(r),         //获取logId
+		"trx":     TrxModule(r),           //获取trx
+		"suspend": ActiveSuspendModule(r), //主动挂起
+		"break":   ActiveBreakModule(r),   //主动中断
 	}
 }
 
-// getRequestModule 设置http 请求函数，返回详细请求信息包括header头
-func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
+type requestArg struct {
+	Url          string            `json:"url"`          //请求的url
+	Method       string            `json:"method"`       //请求的方法
+	Body         any               `json:"body"`         //请求的body
+	Header       map[string]string `json:"header"`       //请求的header
+	Auth         []string          `json:"auth"`         //请求的auth
+	ContentType  string            `json:"contentType"`  //请求类型
+	DataType     string            `json:"dataType"`     //数据类型
+	Timeout      int               `json:"timeout"`      //超时时间
+	ResponseType string            `json:"responseType"` //返回类型
+	IsCache      bool              `json:"isCache"`      //是否缓存
+	OnlyData     *bool             `json:"onlyData"`     //是否只返回data,不携带header等 默认true
+}
 
-	handleArg := func(call otto.FunctionCall) []byte {
+// RequestModule 设置http 请求函数，返回详细请求信息包括header头
+func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+
+	// 解析请求参数
+	handleParseArg := func(call otto.FunctionCall) *requestArg {
 		if len(call.ArgumentList) == 0 {
 			panic(NewModuleArgError("request method argument not null"))
 		}
@@ -43,21 +60,34 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 			panic(NewModuleArgError(fmt.Sprint("request method argument must object")))
 		}
 
-		return byteData
+		arg := &requestArg{}
+		if err = json.Unmarshal(byteData, arg); err != nil {
+			panic(NewModuleArgError(fmt.Sprintf("request method argument type err:%v", err.Error())))
+		}
+
+		if arg.OnlyData == nil {
+			arg.OnlyData = tools.Bool(true)
+		}
+
+		return arg
 	}
 
-	handleRequest := func(byteData []byte) *tools.HttpRequest {
-
+	// 发起请求
+	handleRequest := func(arg *requestArg) *tools.HttpRequest {
 		var err error
-
 		// 创建请求日志
 		log := r.componentLog.NewRequestLog()
 
-		request := tools.HttpRequest{}
-		if err = json.Unmarshal(byteData, &request); err != nil {
-			err = NewModuleArgError(fmt.Sprintf("request method argument field err:%v", err.Error()))
-			log.SetError(err)
-			panic(err)
+		request := tools.HttpRequest{
+			Url:          arg.Url,
+			Method:       arg.Method,
+			Body:         arg.Body,
+			Header:       arg.Header,
+			Auth:         arg.Auth,
+			ContentType:  arg.ContentType,
+			DataType:     arg.DataType,
+			Timeout:      arg.Timeout,
+			ResponseType: arg.ResponseType,
 		}
 
 		// 设置请求参数
@@ -82,6 +112,7 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		return &request
 	}
 
+	// 获取缓存
 	handleGetCache := func(client *redis.Client, key string) (otto.Value, bool) {
 		// 查询redis缓存
 		if str, err := client.Get(context.TODO(), key).Result(); err == nil && str != "" {
@@ -94,101 +125,68 @@ func getRequestModule(r *runtime) map[string]func(call otto.FunctionCall) otto.V
 		return otto.Value{}, false
 	}
 
-	return map[string]func(call otto.FunctionCall) otto.Value{
-		"requestAll": func(call otto.FunctionCall) otto.Value {
-
-			argByte := handleArg(call)
-			req := handleRequest(argByte)
-			resp := map[string]any{
-				"data":    req.ResponseBody(),
-				"status":  req.ResponseCode(),
-				"header":  req.ResponseHeader(),
-				"cookies": req.ResponseCookies(),
-			}
-
-			value, _ := r.vm.ToValue(resp)
-			return value
-		},
-
-		"requestAllCache": func(call otto.FunctionCall) otto.Value {
-			argByte := handleArg(call)
-			key := fmt.Sprintf("request_all_%x", md5.Sum(argByte))
-
-			client := r.ctx.Redis(consts.ProcessScheduleCache)
-			// 查询缓存
-			if value, ok := handleGetCache(client, key); ok {
-				return value
-			}
-
-			// 上锁
-			lc := lock.NewLock(r.ctx, fmt.Sprintf("lock_%v", key))
-			lc.Acquire()
-			defer lc.Release()
-
-			if value, ok := handleGetCache(client, key); ok {
-				return value
-			}
-
-			req := handleRequest(argByte)
-			body := map[string]any{
-				"data":    req.ResponseBody(),
-				"status":  req.ResponseCode(),
-				"header":  req.ResponseHeader(),
-				"cookies": req.ResponseCookies(),
-			}
-
-			// 进行数据缓存
-			str, _ := json.MarshalToString(body)
-			client.Set(context.TODO(), key, str, 5*time.Minute)
-
-			// 返回数据
-			value, _ := r.vm.ToValue(body)
-			return value
-		},
-
-		"request": func(call otto.FunctionCall) otto.Value {
-			argByte := handleArg(call)
-			req := handleRequest(argByte)
-			value, _ := r.vm.ToValue(req.ResponseBody())
-			return value
-		},
-
-		"requestCache": func(call otto.FunctionCall) otto.Value {
-			argByte := handleArg(call)
-			key := fmt.Sprintf("request_%x", md5.Sum(argByte))
-			client := r.ctx.Redis(consts.ProcessScheduleCache)
-
-			// 查询缓存
-			if value, ok := handleGetCache(client, key); ok {
-				return value
-			}
-
-			// 上锁
-			lc := lock.NewLock(r.ctx, fmt.Sprintf("lock_%v", key))
-			lc.Acquire()
-			defer lc.Release()
-
-			if value, ok := handleGetCache(client, key); ok {
-				return value
-			}
-
-			// 缓存没有，进行实时请求
-			req := handleRequest(argByte)
-			body := req.ResponseBody()
-
-			// 进行数据缓存
-			str, _ := json.MarshalToString(body)
-			client.Set(context.TODO(), key, str, 5*time.Minute)
-
-			// 返回数据
-			value, _ := r.vm.ToValue(body)
-			return value
-		},
+	// 获取缓存的key
+	getCacheKey := func(data any) []byte {
+		b, _ := json.Marshal(data)
+		return b
 	}
+
+	// 导出函数
+	return func(call otto.FunctionCall) otto.Value {
+		arg := handleParseArg(call)
+
+		client := r.ctx.Redis(consts.ProcessScheduleCache)
+		cacheKey := ""
+		// 开启了缓存，则查询缓存
+		if arg.IsCache {
+			byteData := getCacheKey(arg)
+			cacheKey = fmt.Sprintf("request_%x", md5.Sum(byteData))
+
+			// 查询缓存
+			if value, ok := handleGetCache(client, cacheKey); ok {
+				return value
+			}
+
+			// 上锁
+			lc := lock.NewLock(r.ctx, fmt.Sprintf("lock_%v", cacheKey))
+			lc.Acquire()
+			defer lc.Release()
+
+			if value, ok := handleGetCache(client, cacheKey); ok {
+				return value
+			}
+		}
+
+		// 缓存没有，进行实时请求
+		req := handleRequest(arg)
+
+		var respData any
+		if *arg.OnlyData {
+			respData = req.ResponseBody()
+		} else {
+			respData = map[string]any{
+				"data":    req.ResponseBody(),
+				"status":  req.ResponseCode(),
+				"header":  req.ResponseHeader(),
+				"cookies": req.ResponseCookies(),
+			}
+		}
+
+		if arg.IsCache {
+			// 进行数据缓存
+			str, _ := json.MarshalToString(respData)
+			client.Set(context.TODO(), cacheKey, str, 5*time.Minute)
+		}
+
+		// 返回数据
+		value, _ := r.vm.ToValue(respData)
+		return value
+	}
+
 }
 
-// getLogModule 设置log包
-func getLogModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
+// LogModule 设置log包
+func LogModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
 	transArgs := func(list []otto.Value) []any {
 		var args []any
 		for _, item := range list {
@@ -221,8 +219,8 @@ func getLogModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value
 	}
 }
 
-// getStoreModule 设置全局存储器
-func getStoreModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
+// StoreModule 设置全局存储器
+func StoreModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
 	const storePrefixKey = "global_store"
 
 	return map[string]func(call otto.FunctionCall) otto.Value{
@@ -257,8 +255,8 @@ func getStoreModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Val
 	}
 }
 
-// getContextLogID 获取链路日志
-func getContextLogID(r *runtime) func(call otto.FunctionCall) otto.Value {
+// LogIDModule 获取链路日志
+func LogIDModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 	return func(call otto.FunctionCall) otto.Value {
 		if value, err := call.Otto.ToValue(r.ctx.TraceID); err != nil {
 			return otto.Value{}
@@ -268,13 +266,54 @@ func getContextLogID(r *runtime) func(call otto.FunctionCall) otto.Value {
 	}
 }
 
-// getTrxModule 获取请求唯一id
-func getTrxModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+// TrxModule 获取请求唯一id
+func TrxModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 	return func(call otto.FunctionCall) otto.Value {
 		if value, err := call.Otto.ToValue(r.trx); err != nil {
 			return otto.Value{}
 		} else {
 			return value
 		}
+	}
+}
+
+// ActiveBreakModule 主动中断请求
+func ActiveBreakModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+	return func(call otto.FunctionCall) otto.Value {
+		if len(call.ArgumentList) == 0 {
+			panic(NewModuleArgError("break method argument not null"))
+		}
+		if !call.Argument(0).IsString() {
+			panic(NewModuleArgError("break method argument must is string"))
+		}
+		panic(NewActiveBreakError(call.Argument(0).String()))
+		return otto.Value{}
+	}
+}
+
+// ActiveSuspendModule 主动挂起请求
+func ActiveSuspendModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+	return func(call otto.FunctionCall) otto.Value {
+		if len(call.ArgumentList) == 0 {
+			panic(NewModuleArgError("suspend method argument not null"))
+		}
+
+		// 1:msg
+		if len(call.ArgumentList) == 1 {
+			if !call.Argument(0).IsString() {
+				panic(NewModuleArgError("suspend method argument must is string"))
+			}
+			// 挂起
+			panic(NewActiveSuspendError("", call.Argument(1).String()))
+		}
+		// 1:code 2:msg
+		if len(call.ArgumentList) >= 2 {
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("suspend method argument must is string"))
+			}
+			// 挂起
+			panic(NewActiveSuspendError(call.Argument(0).String(), call.Argument(1).String()))
+		}
+		return otto.Value{}
 	}
 }

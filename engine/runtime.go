@@ -29,7 +29,6 @@ type runtime struct {
 	response     *responseChan   // 返回通道
 	err          *errorChan      // 错误通道
 	version      string          // 当前运行的版本
-	isFinish     bool            // 是否成功
 	trx          string          // 请求唯一标志
 
 	runStore     RunStore     // 运行存储器
@@ -72,7 +71,7 @@ func (r *runtime) Run() {
 	// 判断是否跳过
 	entry, err := r.IsEntry(r.component)
 	if err != nil {
-		r.err.SetAndClose(err)
+		r.err.SetAndClose(err, r.wg)
 	}
 
 	if !entry {
@@ -86,7 +85,7 @@ func (r *runtime) Run() {
 
 	//判断是否使用缓存
 	cache := r.newRunCache()
-	if r.component.IsCache {
+	if r.component.IsCache { //从缓存读取数据
 		if resp, err = cache.getCache(); err == nil {
 			r.runStore.SetData(r.component.OutputName, resp)
 			r.wg.Done()
@@ -112,22 +111,19 @@ func (r *runtime) Run() {
 			}
 			r.retry++
 		} else {
-			if r.err.IsClose() {
-				r.wg.Done()
-			} else {
-				r.err.SetAndClose(err)
-			}
+			fmt.Println("=======done err =========", err.Error())
+			r.err.SetAndClose(err, r.wg)
 		}
 		// 设置执行错误日志
 		r.componentLog.SetError(err)
 		return
 	}
 
-	r.isFinish = true // 顺利执行完成
 	r.runStore.SetData(r.component.OutputName, resp)
 	if r.component.IsCache {
 		cache.setCache(resp)
 	}
+	fmt.Println("====done finish===")
 	r.wg.Done()
 }
 

@@ -16,22 +16,22 @@ type Rule struct {
 }
 
 type Request struct {
-	Type   string               `json:"type"`   //body数据类型
-	Query  map[string]FieldRule `json:"query"`  //query参数
-	Body   map[string]FieldRule `json:"body"`   //body参数
-	Header map[string]FieldRule `json:"header"` //请求头
+	Type   string               `json:"type"`             //body数据类型
+	Query  map[string]FieldRule `json:"query,omitempty"`  //query参数
+	Body   map[string]FieldRule `json:"body,omitempty"`   //body参数
+	Header map[string]FieldRule `json:"header,omitempty"` //请求头
 }
 
 type FieldRule struct {
-	Type      string               `json:"type"`      //字段类型 [any]
-	Attribute map[string]FieldRule `json:"attribute"` //字段属性 [object]
-	Required  bool                 `json:"required"`  //是否必填 [any]
-	Default   any                  `json:"default"`   //字段默认值 [any]
-	MaxLen    *int                 `json:"maxLen"`    //最大长度 [string]
-	MinLen    *int                 `json:"minLen"`    //最小长度 [string]
-	Max       any                  `json:"max"`       //最大值 [integer|float]
-	Min       any                  `json:"min"`       //最小值 [integer|float]
-	Enum      []any                `json:"enum"`      //枚举值 [integer|float|string|slice]
+	Type      string               `json:"type"`                //字段类型 [any]
+	Attribute map[string]FieldRule `json:"attribute,omitempty"` //字段属性 [object]
+	Required  bool                 `json:"required"`            //是否必填 [any]
+	Default   any                  `json:"default,omitempty"`   //字段默认值 [any]
+	MaxLen    *int                 `json:"maxLen,omitempty"`    //最大长度 [string]
+	MinLen    *int                 `json:"minLen,omitempty"`    //最小长度 [string]
+	Max       any                  `json:"max,omitempty"`       //最大值 [integer|float]
+	Min       any                  `json:"min,omitempty"`       //最小值 [integer|float]
+	Enum      []any                `json:"enum,omitempty"`      //枚举值 [integer|float|string|slice]
 }
 
 type Response struct {
@@ -41,20 +41,21 @@ type Response struct {
 }
 
 type Component struct {
-	Name      string         `json:"name"`      //组件名,同一个step层下，name不能重复
-	Desc      string         `json:"desc"`      //组件描述
-	Type      string         `json:"type"`      //组件类型 [api|script]
-	Input     map[string]any `json:"input"`     //输入参数
-	Condition string         `json:"condition"` //准入条件
-	Url       string         `json:"url"`       //组件地址|api接口
-	IsCache   bool           `json:"isCache"`   //是否启用缓存
+	IsFinish  bool           `json:"-"`                   //附加字段，恢复任务时用
+	Name      string         `json:"name"`                //组件名,同一个step层下，name不能重复
+	Desc      string         `json:"desc"`                //组件描述
+	Type      string         `json:"type"`                //组件类型 [api|script]
+	Input     map[string]any `json:"input,omitempty"`     //输入参数
+	Condition string         `json:"condition,omitempty"` //准入条件
+	Url       string         `json:"url"`                 //组件地址|api接口
+	IsCache   bool           `json:"isCache"`             //是否启用缓存
 
-	Method       string         `json:"method"`       //请求方法，仅api支持
-	ContentType  string         `json:"contentType"`  //数据类型，仅api支持
-	Auth         []any          `json:"auth"`         //数据类型，仅api支持
-	Header       map[string]any `json:"header"`       //数据类型，仅api支持
-	ResponseType string         `json:"responseType"` //返回数据类型，仅api支持
-	DataType     string         `json:"dataType"`     //请求数据类型，仅api支持
+	Method       string         `json:"method,omitempty"`       //请求方法，仅api支持
+	ContentType  string         `json:"contentType,omitempty"`  //数据类型，仅api支持
+	Auth         []any          `json:"auth,omitempty"`         //数据类型，仅api支持
+	Header       map[string]any `json:"header,omitempty"`       //数据类型，仅api支持
+	ResponseType string         `json:"responseType,omitempty"` //返回数据类型，仅api支持
+	DataType     string         `json:"dataType,omitempty"`     //请求数据类型，仅api支持
 
 	Timeout       int    `json:"timeout"`       //组件最大运行时间
 	OutputName    string `json:"outputName"`    //返回数据名

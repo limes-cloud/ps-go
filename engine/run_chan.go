@@ -54,16 +54,15 @@ type errorChan struct {
 }
 
 // SetAndClose 只接收一次错误中断信息
-func (r *errorChan) SetAndClose(data error) {
+func (r *errorChan) SetAndClose(data error, wg *sync.WaitGroup) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-
 	if r.isClose {
+		wg.Done()
 		return
 	}
 	r.isClose = true
 	r.err <- data
-
 	close(r.err)
 }
 

@@ -8,12 +8,15 @@ import (
 
 type RunLog struct {
 	gin.CreateModel
-	Trx     string `json:"trx"`     //唯一请求id
-	Method  string `json:"method"`  //请求的方法
-	Path    string `json:"path"`    //请求的路径
-	Version string `json:"version"` //规则版本
-	LogID   string `json:"log_id"`  //日志id
-	Msg     string `json:"msg"`     //详细日志
+	Trx     string `json:"trx"`      //唯一请求id
+	Method  string `json:"method"`   //请求的方法
+	Path    string `json:"path"`     //请求的路径
+	Version string `json:"version"`  //规则版本
+	LogID   string `json:"log_id"`   //日志id
+	Msg     string `json:"msg"`      //详细日志
+	Step    int    `json:"step"`     //总执行层数
+	CurStep int    `json:"cur_step"` //当前层数
+	Status  string `json:"status"`   //执行状态
 }
 
 func (s RunLog) Table(trx string) string {

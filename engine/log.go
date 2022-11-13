@@ -21,6 +21,7 @@ type Logger interface {
 	SetStartTime(time.Time)
 	GetStepLog(int) StepLog
 	SetVersion(version string)
+	GetStatus() string
 }
 
 type StepLog interface {
@@ -99,6 +100,10 @@ func (r *runLog) SetRequest(data any) {
 
 func (r *runLog) SetStep(step int) {
 	r.CurStep = step
+}
+
+func (r *runLog) GetStatus() string {
+	return r.Status
 }
 
 func (r *runLog) SetError(err error) {

@@ -3,7 +3,6 @@ package engine
 import (
 	"github.com/limeschool/gin"
 	"ps-go/consts"
-	"strings"
 	"sync"
 )
 
@@ -12,6 +11,7 @@ type Engine interface {
 	NewValidate(req Request) Validate
 	NewRunner(*gin.Context, *Rule, RunStore) Runner
 	NewRunStore() RunStore
+	NewRunStoreByData(data map[string]any) RunStore
 }
 
 var eg *engine
@@ -45,17 +45,26 @@ func (e engine) NewRunStore() RunStore {
 	}
 }
 
+// NewRunStoreByData 创建运行存储器
+func (e engine) NewRunStoreByData(data map[string]any) RunStore {
+	return &runStore{
+		data: data,
+		lock: sync.RWMutex{},
+	}
+}
+
 // NewRunner 创建运行调度器
 func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner {
 	run := runnerPool.Get().(*runner)
 	runnerPool.Put(run)
 
-	path := ctx.Request.URL.Path
-	path = strings.TrimLeft(path, consts.ApiPrefix)
+	var copyRule = new(Rule)
+	*copyRule = *rule
 
 	run.trx = ctx.Writer.Header().Get(consts.ProcessScheduleTrx)
 	run.version = rule.Version
 	run.rule = rule
+	run.copyRule = copyRule
 	run.count = len(rule.Components)
 	run.index = 0
 	run.curIndex = 0
@@ -71,12 +80,6 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 		err:  make(chan error),
 		lock: sync.RWMutex{},
 	}
-
-	run.path = path
-	run.method = ctx.Request.Method
-	// 初始化日志
-	run.NewLogger()
-
 	return run
 }
 

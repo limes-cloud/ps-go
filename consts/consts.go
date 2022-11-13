@@ -3,7 +3,7 @@ package consts
 const (
 	ApiPrefix            = "/ps"
 	GoRoutineCount       = 100_000 //最大的协程池数量
-	GoRoutineExecSecond  = 62      //最大执行时间62s
+	GoRoutineExecSecond  = 120     //最大等待回收时长
 	ComponentExecSecond  = 60      //组件最大执行时间60s
 	ProcessScheduleTrx   = "Trx"
 	ProcessScheduleDB    = "ps"       //数据库
@@ -12,7 +12,7 @@ const (
 	ProcessScheduleLock  = "ps_cache" //分布式锁所用的redis
 	RuleHistoryCount     = 3          //rule最大的历史版本数量
 	ScriptHistoryCount   = 3          //script最大的历史版本数量
-	MaxLogReplicaCount   = 32         //运行日志表最大的副本数量
+	MaxLogReplicaCount   = 2          //运行日志表最大的副本数量
 )
 
 const ()
