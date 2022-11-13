@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/limeschool/gin"
@@ -10,42 +11,47 @@ import (
 	"go.uber.org/zap"
 	"ps-go/consts"
 	"ps-go/tools"
+	"ps-go/tools/aes"
 	"ps-go/tools/lock"
+	"ps-go/tools/rsa"
 	"time"
+	"unsafe"
 )
 
 // GetGlobalJsModule 全局module 函数
 func GetGlobalJsModule(r *runtime) any {
 	return gin.H{
-		"request":  RequestModule(r),       //发送请求
-		"log":      LogModule(r),           //打印日志
-		"data":     StoreModule(r),         //存储数据
-		"logId":    LogIDModule(r),         //获取logId
-		"trx":      TrxModule(r),           //获取trx
-		"suspend":  ActiveSuspendModule(r), //主动挂起
-		"break":    ActiveBreakModule(r),   //主动中断
-		"response": ResponseModule(r),
-		//加解密相关api
-
+		"request":  RequestModule(r),      //发送请求
+		"log":      LogModule(r),          //打印日志
+		"data":     StoreModule(r),        //存储数据
+		"logId":    LogIDModule(r),        //获取logId
+		"trx":      TrxModule(r),          //获取trx
+		"suspend":  ActiveSuspendModule(), //主动挂起
+		"break":    ActiveBreakModule(),   //主动中断
+		"response": ResponseModule(r),     //主动返回
+		"base64":   Base64Module(),        //base64加解密
+		"uuid":     UuidModule(),          //生成唯一id
+		"aes":      AesModule(),           //aes加解密
+		"rsa":      RsaModule(),           //rsa加解密
 	}
-}
-
-type requestArg struct {
-	Url          string            `json:"url"`          //请求的url
-	Method       string            `json:"method"`       //请求的方法
-	Body         any               `json:"body"`         //请求的body
-	Header       map[string]string `json:"header"`       //请求的header
-	Auth         []string          `json:"auth"`         //请求的auth
-	ContentType  string            `json:"contentType"`  //请求类型
-	DataType     string            `json:"dataType"`     //数据类型
-	Timeout      int               `json:"timeout"`      //超时时间
-	ResponseType string            `json:"responseType"` //返回类型
-	IsCache      bool              `json:"isCache"`      //是否缓存
-	OnlyData     *bool             `json:"onlyData"`     //是否只返回data,不携带header等 默认true
 }
 
 // RequestModule 设置http 请求函数，返回详细请求信息包括header头
 func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+
+	type requestArg struct {
+		Url          string            `json:"url"`          //请求的url
+		Method       string            `json:"method"`       //请求的方法
+		Body         any               `json:"body"`         //请求的body
+		Header       map[string]string `json:"header"`       //请求的header
+		Auth         []string          `json:"auth"`         //请求的auth
+		ContentType  string            `json:"contentType"`  //请求类型
+		DataType     string            `json:"dataType"`     //数据类型
+		Timeout      int               `json:"timeout"`      //超时时间
+		ResponseType string            `json:"responseType"` //返回类型
+		IsCache      bool              `json:"isCache"`      //是否缓存
+		OnlyData     *bool             `json:"onlyData"`     //是否只返回data,不携带header等 默认true
+	}
 
 	// 解析请求参数
 	handleParseArg := func(call otto.FunctionCall) *requestArg {
@@ -281,7 +287,7 @@ func TrxModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 }
 
 // ActiveBreakModule 主动中断请求
-func ActiveBreakModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+func ActiveBreakModule() func(call otto.FunctionCall) otto.Value {
 	return func(call otto.FunctionCall) otto.Value {
 		if len(call.ArgumentList) == 0 {
 			panic(NewModuleArgError("break method argument not null"))
@@ -295,7 +301,7 @@ func ActiveBreakModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 }
 
 // ActiveSuspendModule 主动挂起请求
-func ActiveSuspendModule(r *runtime) func(call otto.FunctionCall) otto.Value {
+func ActiveSuspendModule() func(call otto.FunctionCall) otto.Value {
 	return func(call otto.FunctionCall) otto.Value {
 		if len(call.ArgumentList) == 0 {
 			panic(NewModuleArgError("suspend method argument not null"))
@@ -340,5 +346,200 @@ func ResponseModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 		r.response.SetAndClose(respData)
 
 		return otto.Value{}
+	}
+}
+
+// Base64Module base64加解密
+func Base64Module() map[string]func(call otto.FunctionCall) otto.Value {
+	return map[string]func(call otto.FunctionCall) otto.Value{
+		"encode": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) == 0 {
+				panic(NewModuleArgError("base64.encode method argument not null"))
+			}
+
+			if !call.Argument(0).IsString() {
+				panic(NewModuleArgError("base64.encode method argument must is string"))
+			}
+
+			str := call.Argument(0).String()
+			enStr := base64.StdEncoding.EncodeToString(*(*[]byte)(unsafe.Pointer(&str)))
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"decode": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) == 0 {
+				panic(NewModuleArgError("base64.decode method argument is string"))
+			}
+			if !call.Argument(0).IsString() {
+				panic(NewModuleArgError("base64.decode method argument must is string"))
+			}
+
+			str := call.Argument(0).String()
+			enStr := base64.StdEncoding.EncodeToString(*(*[]byte)(unsafe.Pointer(&str)))
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+	}
+}
+
+// UuidModule 生成唯一id
+func UuidModule() func(call otto.FunctionCall) otto.Value {
+	return func(call otto.FunctionCall) otto.Value {
+		value, _ := call.Otto.ToValue(tools.UUID())
+		return value
+	}
+}
+
+// AesModule aes加解密
+func AesModule() map[string]func(call otto.FunctionCall) otto.Value {
+	return map[string]func(call otto.FunctionCall) otto.Value{
+		"encodeToBase64": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("aes.encodeToBase64 method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("aes.encodeToBase64 method parameter must be string"))
+			}
+
+			enStr, err := aes.EncryptToBase64(call.Argument(1).String(), call.Argument(0).String())
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("aes.encodeToBase64 err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"decodeFromBase64": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("aes.decodeFromBase64 method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("aes.decodeFromBase64 method parameter must be string"))
+			}
+
+			enStr, err := aes.DecryptFromBase64(call.Argument(1).String(), call.Argument(0).String())
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("aes.decodeFromBase64 err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"encodeToHex": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("aes.encodeToHex method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("aes.encodeToHex method parameter must be string"))
+			}
+
+			enStr, err := aes.EncryptToHex(call.Argument(1).String(), call.Argument(0).String())
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("aes.encodeToHex err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"decodeFromHex": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("aes.decodeFromHex method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("aes.decodeFromHex method parameter must be string"))
+			}
+
+			enStr, err := aes.DecryptFromHex(call.Argument(1).String(), call.Argument(0).String())
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("aes.decodeFromHex err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+	}
+}
+
+// RsaModule rsa加解密
+func RsaModule() map[string]func(call otto.FunctionCall) otto.Value {
+	// todo 通过指定的标志符查询证书
+	findKey := func(k string) []byte {
+
+		return []byte{}
+	}
+
+	return map[string]func(call otto.FunctionCall) otto.Value{
+		"encodeToBase64": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("rsa.encodeToBase64 method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("rsa.encodeToBase64 method parameter must be string"))
+			}
+
+			enStr, err := rsa.EncryptToBase64(call.Argument(1).String(), findKey(call.Argument(0).String()))
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("rsa.encodeToBase64 err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"decodeFromBase64": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("rsa.decodeFromBase64 method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("rsa.decodeFromBase64 method parameter must be string"))
+			}
+
+			enStr, err := rsa.DecryptFromBase64(call.Argument(1).String(), findKey(call.Argument(0).String()))
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("rsa.decodeFromBase64 err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"encodeToHex": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("rsa.encodeToHex method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("rsa.encodeToHex method parameter must be string"))
+			}
+
+			enStr, err := rsa.EncryptToHex(call.Argument(1).String(), findKey(call.Argument(0).String()))
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("rsa.encodeToHex err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
+		"decodeFromHex": func(call otto.FunctionCall) otto.Value {
+			if len(call.ArgumentList) != 2 {
+				panic(NewModuleArgError("rsa.decodeFromHex method has only two parameters"))
+			}
+
+			if !call.Argument(0).IsString() || !call.Argument(1).IsString() {
+				panic(NewModuleArgError("rsa.decodeFromHex method parameter must be string"))
+			}
+
+			enStr, err := rsa.DecryptFromHex(call.Argument(1).String(), findKey(call.Argument(0).String()))
+			if err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("rsa.decodeFromHex err:%v", err)))
+			}
+
+			value, _ := call.Otto.ToValue(enStr)
+			return value
+		},
 	}
 }
