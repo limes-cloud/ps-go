@@ -67,7 +67,7 @@ type Component struct {
 	ErrorMsg          string         `json:"errorMsg"`               //返回不符合条件时，返回的错误码
 
 	IgnoreError   bool   `json:"ignoreError"`   //是否忽略error
-	OutputField   string `json:"outputField"`   //返回数据中取哪个字段，仅api支持
+	outputData    any    `json:"outputData"`    //返回数据,仅支持string 和 map
 	Timeout       int    `json:"timeout"`       //组件最大运行时间
 	OutputName    string `json:"outputName"`    //返回数据名
 	RetryMaxCount int    `json:"retryMaxCount"` //最大重试次数

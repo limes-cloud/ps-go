@@ -217,11 +217,27 @@ func (r *runtime) runApi() (any, error) {
 	}
 
 	// 是否设置outputField
-	if r.component.OutputField != "" {
-		return tools.GetMapData(r.component.OutputField, data), nil
+	if r.component.outputData != nil {
+		return r.GetOutputData(r.component.outputData, data), nil
 	}
 
 	return data, nil
+}
+
+func (r *runtime) GetOutputData(outputData any, data any) any {
+	inData := map[string]any{}
+
+	switch data.(type) {
+	case map[string]any:
+		inData = data.(map[string]any)
+	case map[string]string:
+		temp := data.(map[string]string)
+		for key, val := range temp {
+			inData[key] = val
+		}
+	}
+	st := &runStore{data: inData}
+	return st.GetMatchData(outputData)
 }
 
 func (r *runtime) runScript() (resp any, err error) {
@@ -262,11 +278,16 @@ func (r *runtime) runScript() (resp any, err error) {
 	}
 
 	// 返回结果
-	if v, err := value.Export(); err != nil {
+	respData, err := value.Export()
+	if err != nil {
 		return nil, NewScriptFuncReturnError(err.Error())
-	} else {
-		return v, nil
 	}
+
+	if r.component.outputData != nil {
+		return r.GetOutputData(r.component.outputData, respData), nil
+	}
+
+	return respData, nil
 }
 
 // transferData 对可输入变量字段进行转换
