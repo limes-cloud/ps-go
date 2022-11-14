@@ -55,7 +55,7 @@ func AddScript(ctx *gin.Context) {
 	}
 }
 
-func SwitchVersion(ctx *gin.Context) {
+func SwitchScriptVersion(ctx *gin.Context) {
 	in := types.SwitchVersionScriptRequest{}
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		ctx.RespError(errors.ParamsError)

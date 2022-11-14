@@ -20,14 +20,14 @@ func Init() *gin.Engine {
 		api.GET("/rule", handler.GetRule)
 		api.GET("/rule/page", handler.PageRule)
 		api.POST("/rule", handler.AddRule)
-		api.PUT("/rule/switch_version", handler.UpdateRule)
+		api.PUT("/rule/switch_version", handler.SwitchRuleVersion)
 		api.DELETE("/rule", handler.DeleteRule)
 
 		// 脚本相关api
 		api.GET("/script", handler.GetScript)
 		api.GET("/script/page", handler.PageScript)
 		api.POST("/script", handler.AddScript)
-		api.PUT("/script/switch_version", handler.SwitchVersion)
+		api.PUT("/script/switch_version", handler.SwitchScriptVersion)
 		api.DELETE("/script", handler.DeleteScript)
 
 		// 异常中断api

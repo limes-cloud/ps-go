@@ -55,7 +55,7 @@ func AddRule(ctx *gin.Context) {
 	}
 }
 
-func UpdateRule(ctx *gin.Context) {
+func SwitchRuleVersion(ctx *gin.Context) {
 	in := types.SwitchVersionRuleRequest{}
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		ctx.RespError(errors.ParamsError)
