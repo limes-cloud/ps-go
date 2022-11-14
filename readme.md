@@ -207,8 +207,8 @@ components：执行组件相关配置，后续详细说明。
     "dataType":"json/xml", //请求数据类型，仅api支持
     // {code:200,msg:"success",data:{phone:"xxxx"}}
     "responseCondition":"{code}==200", //返回条件判断
-    
-    "outputData":"data.phone", //返回数据
+    "outputData":"{data}", //返回数据
+    "errMsg":"{msg}",
     "tls":{       //发送http请求携带的证书
         "ca":"123",  //ca 标志符。会从密钥库查询标志符对应的密钥
         "key":"345"  //key 标志符。会从密钥库查询标志符对应的密钥
