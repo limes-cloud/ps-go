@@ -111,7 +111,6 @@ func (r *runtime) Run() {
 			}
 			r.retry++
 		} else {
-			fmt.Println("=======done err =========", err.Error())
 			r.err.SetAndClose(err, r.wg)
 		}
 		// 设置执行错误日志
@@ -123,7 +122,6 @@ func (r *runtime) Run() {
 	if r.component.IsCache {
 		cache.setCache(resp)
 	}
-	fmt.Println("====done finish===")
 	r.wg.Done()
 }
 

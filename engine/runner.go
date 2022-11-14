@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"github.com/limeschool/gin"
 	"go.uber.org/zap"
 	"ps-go/errors"
@@ -74,7 +73,6 @@ func (r *runner) Run() {
 		r.index++
 	}
 
-	fmt.Println("====== 执行结束========")
 	// 释放通道
 	r.err.Close()
 	r.response.Close()
@@ -105,9 +103,7 @@ func (r *runner) RunComponent(count int) {
 		}
 		_ = pool.Get().Invoke(rt)
 	}
-	fmt.Println("=======Wait=======")
 	r.wg.Wait()
-	fmt.Println("=======Wait Done=======")
 }
 
 func (r *runner) NewRuntime(log StepLog, action int) (*runtime, error) {

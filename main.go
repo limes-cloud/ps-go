@@ -10,8 +10,6 @@ import (
 	"runtime"
 )
 
-var beginMem runtime.MemStats
-
 func main() {
 	// 协程池初始化
 	pool.Init()
@@ -28,10 +26,12 @@ func main() {
 	}
 }
 
+// var beginMem runtime.MemStats
+// runtime.ReadMemStats(&beginMem)
+// PrintMemInfo 打印系统内存信息
 func PrintMemInfo(beginMem runtime.MemStats) {
 	var endMem runtime.MemStats
 	runtime.ReadMemStats(&endMem)
-
 	fmt.Printf("\n已申请且仍在使用的字节数 Alloc = %v MiB", (endMem.Alloc-beginMem.Alloc)/1024/1024)
 	fmt.Printf("\n已申请的总字节数 TotalAlloc = %v MiB", (endMem.TotalAlloc-beginMem.TotalAlloc)/1024/1024)
 	fmt.Printf("\n从系统中获取的字节数 Sys = %v MiB", (endMem.Sys-beginMem.Sys)/1024/1024)
