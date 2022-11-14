@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/limeschool/gin"
 	"go.uber.org/zap"
+	"ps-go/consts"
 	"ps-go/errors"
 	"ps-go/model"
 	"ps-go/tools"
@@ -153,9 +154,7 @@ func (r *runner) WaitResponse() {
 	if !is {
 		return
 	}
-	//defer r.response.Close()
-
-	r.runStore.SetData("response", map[string]any{"body": data})
+	r.runStore.SetData(consts.PSResponseKey, data)
 }
 
 // WaitError 监听当前流程错误事件，只监听一次，并且中断流程执行
@@ -228,11 +227,17 @@ func (r *runner) ResponseError(err error) {
 
 // Response 进行数据返回
 func (r *runner) Response() any {
-	var resp any
+	//当返回值为nil，且具有默认返回值时，直接返回默认返回值
+	resp := r.runStore.GetData(consts.PSResponseKey)
+	if r.rule.Response.DefaultBody != nil && resp == nil {
+		return r.rule.Response.DefaultBody
+	}
+
 	body := r.rule.Response.Body
 	if body != nil {
 		resp = r.runStore.GetMatchData(r.rule.Response.Body)
 	}
+
 	// 设置返回的数据
 	r.logger.SetResponse(resp)
 	return resp

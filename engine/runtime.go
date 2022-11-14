@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"ps-go/consts"
 	"ps-go/errors"
+	"ps-go/model"
 	"ps-go/tools"
 	"ps-go/tools/pool"
 	"reflect"
@@ -118,9 +119,11 @@ func (r *runtime) Run() {
 		return
 	}
 
-	r.runStore.SetData(r.component.OutputName, resp)
-	if r.component.IsCache {
-		cache.setCache(resp)
+	if r.component.OutputName != "" {
+		r.runStore.SetData(r.component.OutputName, resp)
+		if r.component.IsCache {
+			cache.setCache(resp)
+		}
 	}
 	r.wg.Done()
 }
@@ -168,6 +171,21 @@ func (r *runtime) runApi() (any, error) {
 		Timeout:      com.Timeout,
 		ResponseType: com.ResponseType,
 		DataType:     com.DataType,
+	}
+
+	if com.Tls != nil {
+		caSecret := model.Secret{}
+		if err := caSecret.OneByName(r.ctx, com.Tls.Ca); err != nil {
+			return nil, errors.NewF("tls.ca name found err :%v", err.Error())
+		}
+		keySecret := model.Secret{}
+		if err := keySecret.OneByName(r.ctx, com.Tls.Key); err != nil {
+			return nil, errors.NewF("tls.key name found err :%v", err.Error())
+		}
+		request.Tls = &tools.Tls{
+			Ca:  []byte(caSecret.Context),
+			Key: []byte(keySecret.Context),
+		}
 	}
 
 	// 设置api的请求日志

@@ -30,6 +30,13 @@ func Init() *gin.Engine {
 		api.PUT("/script/switch_version", handler.SwitchScriptVersion)
 		api.DELETE("/script", handler.DeleteScript)
 
+		// 密钥管理相关
+		api.GET("/secret", handler.GetSecret)
+		api.GET("/secret/page", handler.PageSecret)
+		api.POST("/script", handler.AddSecret)
+		api.PUT("/secret", handler.UpdateSecret)
+		api.DELETE("/script", handler.DeleteSecret)
+
 		// 异常中断api
 		api.GET("/suspend/page", handler.PageSuspend)
 		api.GET("/suspend", handler.GetSuspend)

@@ -28,7 +28,18 @@ func (r *runStore) GetAll() map[string]any {
 func (r *runStore) SetData(key string, val any) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.data[key] = val
+
+	keys := strings.Split(key, ".")
+	if len(keys) == 1 {
+		r.data[key] = val
+		return
+	}
+
+	tempData := map[string]any{keys[len(keys)-1]: val}
+	for i := len(keys) - 2; i > 1; i-- {
+		tempData[keys[i]] = tempData
+	}
+	r.data[keys[0]] = tempData
 }
 
 // GetData 直接通过viper 获取数据
