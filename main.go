@@ -8,19 +8,11 @@ import (
 	"ps-go/tools/hash"
 	"ps-go/tools/pool"
 	"runtime"
-	"time"
 )
 
 var beginMem runtime.MemStats
 
 func main() {
-	runtime.ReadMemStats(&beginMem)
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			PrintMemInfo(beginMem)
-		}
-	}()
 	// 协程池初始化
 	pool.Init()
 	// 调度引擎初始化

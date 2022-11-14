@@ -12,10 +12,8 @@ const (
 	ProcessScheduleLock  = "ps_cache" //分布式锁所用的redis
 	RuleHistoryCount     = 3          //rule最大的历史版本数量
 	ScriptHistoryCount   = 3          //script最大的历史版本数量
-	MaxLogReplicaCount   = 2          //运行日志表最大的副本数量
+	MaxLogReplicaCount   = 32         //运行日志表最大的副本数量
 )
-
-const ()
 
 const (
 	RespXml  = "xml"
