@@ -209,8 +209,11 @@ func (r *runtime) runApi() (any, error) {
 
 	// 表达式为false
 	if !is {
-		msg := r.runStore.GetMatchData(r.component.ErrorMsg)
-		return nil, errors.New(fmt.Sprint(msg))
+		reg := regexp.MustCompile(`\{(\w|\.)+\}`)
+		if str := reg.FindString(r.component.ErrorMsg); str != "" {
+			return nil, errors.New(fmt.Sprint(tools.GetMapData(str[1:len(str)-1], data)))
+		}
+		return nil, errors.New(r.component.ErrorMsg)
 	}
 
 	// 是否设置outputField

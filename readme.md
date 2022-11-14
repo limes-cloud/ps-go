@@ -205,6 +205,7 @@ components：执行组件相关配置，后续详细说明。
     "header":{},   //请求header头，仅api支持
     "responseType":"json/xml", //返回数据类型，仅api支持
     "dataType":"json/xml", //请求数据类型，仅api支持
+    "responseCondition":"{}!=1", //返回条件判断
     "tls":{       //发送http请求携带的证书
         "ca":"123",  //ca 标志符。会从密钥库查询标志符对应的密钥
         "key":"345"  //key 标志符。会从密钥库查询标志符对应的密钥
