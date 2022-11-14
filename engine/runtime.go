@@ -70,7 +70,7 @@ func (r *runtime) Run() {
 	defer r.setLog(resp, err, time.Now())
 
 	// 判断是否跳过
-	entry, err := r.IsEntry(r.component)
+	entry, err := r.GetConditionResult(r.component.Condition)
 	if err != nil {
 		r.err.SetAndClose(err, r.wg)
 	}
@@ -191,7 +191,34 @@ func (r *runtime) runApi() (any, error) {
 	// 设置api的请求日志
 	defer r.componentLog.SetApiRequest(request)
 
-	return request.Result()
+	resp, err := request.Result()
+	if err != nil {
+		return resp, err
+	}
+
+	data, ok := resp.(map[string]any)
+	if !ok {
+		return resp, nil
+	}
+
+	// 获取返回表达式
+	is, err := r.GetConditionResult(r.component.ResponseCondition)
+	if err != nil {
+		return nil, err
+	}
+
+	// 表达式为false
+	if !is {
+		msg := r.runStore.GetMatchData(r.component.ErrorMsg)
+		return nil, errors.New(fmt.Sprint(msg))
+	}
+
+	// 是否设置outputField
+	if r.component.OutputField != "" {
+		return tools.GetMapData(r.component.OutputField, data), nil
+	}
+
+	return data, nil
 }
 
 func (r *runtime) runScript() (resp any, err error) {
@@ -296,18 +323,18 @@ func (r *runtime) IsRetry(err error) bool {
 	return false
 }
 
-// IsEntry 是否准入
-func (r *runtime) IsEntry(com Component) (bool, error) {
-	if com.Condition == "" {
+// GetConditionResult 获取表达式结果
+func (r *runtime) GetConditionResult(condition string) (bool, error) {
+	if strings.Trim(condition, " ") == "" {
 		return true, nil
 	}
 
 	// 需要执行表达式
 	reg := regexp.MustCompile(`\{(\w|\.)+}`)
-	variable := reg.FindAllString(com.Condition, -1)
+	variable := reg.FindAllString(condition, -1)
 
 	script := ""
-	cond := com.Condition
+	cond := condition
 
 	for index, valIndex := range variable {
 		key := fmt.Sprintf("a_%v", index)

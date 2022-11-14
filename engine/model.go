@@ -56,17 +56,22 @@ type Component struct {
 	Url       string         `json:"url"`                 //组件地址|api接口
 	IsCache   bool           `json:"isCache"`             //是否启用缓存
 
-	Method        string         `json:"method,omitempty"`       //请求方法，仅api支持
-	ContentType   string         `json:"contentType,omitempty"`  //数据类型，仅api支持
-	Auth          []any          `json:"auth,omitempty"`         //数据类型，仅api支持
-	Header        map[string]any `json:"header,omitempty"`       //数据类型，仅api支持
-	ResponseType  string         `json:"responseType,omitempty"` //返回数据类型，仅api支持
-	DataType      string         `json:"dataType,omitempty"`     //请求数据类型，仅api支持
-	Tls           *tls           `json:"tls,omitempty"`          //请求ca证书
-	Timeout       int            `json:"timeout"`                //组件最大运行时间
-	OutputName    string         `json:"outputName"`             //返回数据名
-	RetryMaxCount int            `json:"retryMaxCount"`          //最大重试次数
-	RetryMaxWait  int            `json:"retryMaxWait"`           //重试最大等待时长
+	Method            string         `json:"method,omitempty"`       //请求方法，仅api支持
+	ContentType       string         `json:"contentType,omitempty"`  //数据类型，仅api支持
+	Auth              []any          `json:"auth,omitempty"`         //请求auth，仅api支持
+	Header            map[string]any `json:"header,omitempty"`       //请求header，仅api支持
+	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持
+	DataType          string         `json:"dataType,omitempty"`     //数据类型，仅api支持
+	Tls               *tls           `json:"tls,omitempty"`          //请求ca证书，仅api支持
+	ResponseCondition string         `json:"responseCondition"`      //返回判断条件
+	ErrorMsg          string         `json:"errorMsg"`               //返回不符合条件时，返回的错误码
+
+	IgnoreError   bool   `json:"ignoreError"`   //是否忽略error
+	OutputField   string `json:"outputField"`   //返回数据中取哪个字段，仅api支持
+	Timeout       int    `json:"timeout"`       //组件最大运行时间
+	OutputName    string `json:"outputName"`    //返回数据名
+	RetryMaxCount int    `json:"retryMaxCount"` //最大重试次数
+	RetryMaxWait  int    `json:"retryMaxWait"`  //重试最大等待时长
 }
 
 func (f *FieldRule) ValidateInt(val any, is bool) (resp int, ignore bool, err error) {

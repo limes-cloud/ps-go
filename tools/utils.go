@@ -26,3 +26,29 @@ func InList[ListType comparable](list []ListType, val ListType) bool {
 	}
 	return false
 }
+
+// GetMapData 取map数据，带.
+func GetMapData(key string, m map[string]any) any {
+	keys := strings.Split(key, ".")
+	if len(keys) == 1 {
+		return m[key]
+	}
+
+	var temp any = m
+	// 遍历取值
+	for _, key = range keys {
+		temp = getMapByAny(key, temp)
+	}
+	return temp
+}
+
+func getMapByAny(key string, data any) any {
+	switch data.(type) {
+	case map[string]any:
+		return data.(map[string]any)[key]
+	case map[string]string:
+		return data.(map[string]string)[key]
+	default:
+		return nil
+	}
+}
