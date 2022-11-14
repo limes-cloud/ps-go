@@ -10,6 +10,7 @@ import (
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
 	"ps-go/consts"
+	"ps-go/model"
 	"ps-go/tools"
 	"ps-go/tools/aes"
 	"ps-go/tools/lock"
@@ -32,7 +33,7 @@ func GetGlobalJsModule(r *runtime) any {
 		"base64":   Base64Module(),        //base64加解密
 		"uuid":     UuidModule(),          //生成唯一id
 		"aes":      AesModule(),           //aes加解密
-		"rsa":      RsaModule(),           //rsa加解密
+		"rsa":      RsaModule(r),          //rsa加解密
 	}
 }
 
@@ -465,11 +466,13 @@ func AesModule() map[string]func(call otto.FunctionCall) otto.Value {
 }
 
 // RsaModule rsa加解密
-func RsaModule() map[string]func(call otto.FunctionCall) otto.Value {
-	// todo 通过指定的标志符查询证书
+func RsaModule(r *runtime) map[string]func(call otto.FunctionCall) otto.Value {
 	findKey := func(k string) []byte {
-
-		return []byte{}
+		secret := model.Secret{}
+		if err := secret.OneByName(r.ctx, k); err != nil {
+			panic(NewModuleArgError(fmt.Sprintf("rsa secret name %v does not exist", k)))
+		}
+		return []byte(secret.Context)
 	}
 
 	return map[string]func(call otto.FunctionCall) otto.Value{
