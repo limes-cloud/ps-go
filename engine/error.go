@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"github.com/limeschool/gin"
 	"strings"
 )
 
@@ -19,15 +18,6 @@ const (
 	ActiveSuspendErrorCode    = "110009"
 	BreakErrorCode            = "110010"
 	SuspendErrorCode          = "110011"
-	ActiveResponseCode        = "110012"
-)
-
-var (
-
-	// 调用系统函数参数错误报错
-	// 网络请求报错
-
-	RuleNotFoundError = &gin.CustomError{Code: 110100, Msg: "流程规则不存在"}
 )
 
 type Error struct {
@@ -136,9 +126,4 @@ func NewActiveSuspendError(code, msg string) error {
 		Code: code,
 		Msg:  msg,
 	}
-}
-
-// NewActiveResponse 主动返回
-func NewActiveResponse() error {
-	return &Error{Code: ActiveResponseCode, Msg: ""}
 }

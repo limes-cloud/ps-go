@@ -152,31 +152,30 @@ func (u *Script) OneByID(ctx *gin.Context, id int64) error {
 
 // Create 创建脚本
 func (u *Script) Create(ctx *gin.Context) error {
-	db := database(ctx)
+	db := database(ctx).Table(u.Table()).Session(&gorm.Session{NewDB: true})
 	// 查看当前是否存在脚本
 	count, _ := u.Count(ctx, func(db *gorm.DB) *gorm.DB {
-		return db.Table(u.Table()).Where("name = ?", u.Name)
+		return db.Where("name = ?", u.Name)
 	})
 
 	// 创建脚本,第一个脚本则直接使用
 	u.Status = tools.Bool(count == 0)
 	u.Version = tools.UUID()
-	if err := db.Table(u.Table()).Create(u).Error; err != nil {
+	if err := db.Create(u).Error; err != nil {
 		return err
 	}
 
 	// 判断是否超过保存最大的副本数量
-	if count > consts.ScriptHistoryCount {
+	if count >= consts.ScriptHistoryCount {
 		script := Script{}
-		if err := db.Table(u.Table()).
-			Where("name = ?", u.Name).
+		if err := db.
+			Where("name=?", u.Name).
 			Order("id desc").
 			Offset(consts.ScriptHistoryCount - 1).
 			Limit(1).
 			First(&script).Error; err == nil {
 
-			db.Table(u.Table()).
-				Where("id <= ? and name = ? and status = false", script.ID, script.Name).
+			db.Where("id<=? and name=? and status=false", script.ID, script.Name).
 				Delete(&Script{})
 
 		}

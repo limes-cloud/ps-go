@@ -165,32 +165,27 @@ func (u *Rule) Create(ctx *gin.Context) error {
 	cacheKey := u.CacheKey(fmt.Sprintf("%v:%v", u.Name, u.Method))
 	delayDelCache(ctx, cacheKey)
 
-	db := database(ctx)
+	db := database(ctx).Table(u.Table()).Session(&gorm.Session{NewDB: true})
 	// 查看当前是否存在规则
 	count, _ := u.Count(ctx, func(db *gorm.DB) *gorm.DB {
-		return db.Table(u.Table()).Where("name = ? and method = ?", u.Name, u.Method)
+		return db.Where("name = ? and method = ?", u.Name, u.Method)
 	})
 
 	// 创建规则,第一个规则则直接使用
 	u.Status = tools.Bool(count == 0)
 	u.Version = tools.UUID()
-	if err := db.Table(u.Table()).Create(u).Error; err != nil {
+	if err := db.Create(u).Error; err != nil {
 		return err
 	}
 
 	// 判断是否超过保存最大的副本数量
-	if count > consts.RuleHistoryCount {
+	if count >= consts.RuleHistoryCount {
 		rule := Rule{}
-		if err := db.Table(u.Table()).Where("name = ? and method = ?", u.Name, u.Method).
+		if err := db.Where("name=? and method=?", u.Name, u.Method).
 			Order("id desc").Offset(consts.RuleHistoryCount - 1).Limit(1).First(&rule).Error; err == nil {
-
-			db.Table(u.Table()).
-				Where("id <= ? and name = ? and method = ? and status = false", rule.ID, u.Name, u.Method).
-				Delete(&Rule{})
-
+			db.Where("id<=? and name=? and method=? and status=false", rule.ID, u.Name, u.Method).Delete(&Rule{})
 		}
 	}
-
 	return nil
 }
 
