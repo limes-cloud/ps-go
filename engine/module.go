@@ -40,6 +40,11 @@ func GetGlobalJsModule(r *runtime) any {
 // RequestModule 设置http 请求函数，返回详细请求信息包括header头
 func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 
+	type tls struct {
+		Ca  string `json:"ca"`
+		Key string `json:"key"`
+	}
+
 	type requestArg struct {
 		Url          string            `json:"url"`          //请求的url
 		Method       string            `json:"method"`       //请求的方法
@@ -52,6 +57,7 @@ func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 		ResponseType string            `json:"responseType"` //返回类型
 		IsCache      bool              `json:"isCache"`      //是否缓存
 		OnlyData     *bool             `json:"onlyData"`     //是否只返回data,不携带header等 默认true
+		Tls          *tls              `json:"tls"`          //请求需要携带证书时使用
 	}
 
 	// 解析请求参数
@@ -98,6 +104,22 @@ func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 			DataType:     arg.DataType,
 			Timeout:      arg.Timeout,
 			ResponseType: arg.ResponseType,
+		}
+
+		if arg.Tls != nil {
+			caSecret := model.Secret{}
+			if err = caSecret.OneByName(r.ctx, arg.Tls.Ca); err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("request method tls.ca name found err :%v", err.Error())))
+			}
+			keySecret := model.Secret{}
+			if err = keySecret.OneByName(r.ctx, arg.Tls.Key); err != nil {
+				panic(NewModuleArgError(fmt.Sprintf("request method tls.key name found err :%v", err.Error())))
+			}
+
+			request.Tls = &tools.Tls{
+				Ca:  []byte(caSecret.Context),
+				Key: []byte(keySecret.Context),
+			}
 		}
 
 		// 设置请求参数

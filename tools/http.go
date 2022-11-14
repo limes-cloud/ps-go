@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"crypto/tls"
 	"encoding/xml"
 	"fmt"
 	"github.com/valyala/fasthttp"
@@ -9,6 +10,11 @@ import (
 	"strings"
 	"unsafe"
 )
+
+type Tls struct {
+	Ca  []byte
+	Key []byte
+}
 
 type HttpRequest struct {
 	Url          string            `json:"url"`
@@ -20,7 +26,7 @@ type HttpRequest struct {
 	DataType     string            `json:"data_type"` //xml|text|json
 	Timeout      int               `json:"timeout"`
 	ResponseType string            `json:"response_type"`
-
+	Tls          *Tls              `json:"-"`
 	// 返回数据
 	respHeader  map[string]string
 	respCode    int
@@ -50,12 +56,23 @@ func (r *HttpRequest) Result() (any, error) {
 }
 
 func (r *HttpRequest) Do() error {
+
+	var tlsc *tls.Config // 请求证书信息
+	var err error
+
 	if r.Url == "" {
 		return errors.New("request url not empty")
 	}
 
 	if r.Method == "" {
 		return errors.New("request method not empty")
+	}
+
+	if r.Tls != nil {
+		tlsc, err = getTlsConfig(r.Tls.Ca, r.Tls.Key)
+		if err != nil {
+			return errors.NewF("tls config error:%v", err.Error())
+		}
 	}
 
 	r.Method = strings.ToUpper(r.Method)
@@ -114,12 +131,12 @@ func (r *HttpRequest) Do() error {
 	defer fasthttp.ReleaseResponse(resp)
 
 	// 发起请求
-	if err := fasthttp.Do(req, resp); err != nil {
+	client := fasthttp.Client{TLSConfig: tlsc}
+	if err = client.Do(req, resp); err != nil {
 		return err
 	}
 
 	// 获取返回信息
-
 	r.respCode = resp.StatusCode()
 	r.respHeader = r.getHeader(resp)
 	r.respCookies = r.getCookies(r.respHeader)
@@ -150,6 +167,16 @@ func (r *HttpRequest) Do() error {
 	}
 
 	return errors.NewF("非法的数据返回格式:%v", r.ResponseType)
+}
+
+func getTlsConfig(rootCa, rootKey []byte) (*tls.Config, error) {
+	certs, err := tls.X509KeyPair(rootCa, rootKey)
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{certs},
+	}, nil
 }
 
 func (r *HttpRequest) BodyToQuery() string {
