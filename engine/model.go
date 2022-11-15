@@ -63,12 +63,13 @@ type Component struct {
 	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持
 	DataType          string         `json:"dataType,omitempty"`     //数据类型，仅api支持
 	Tls               *tls           `json:"tls,omitempty"`          //请求ca证书，仅api支持
-	ResponseCondition string         `json:"responseCondition"`      //返回判断条件
-	ErrorMsg          string         `json:"errorMsg"`               //返回不符合条件时，返回的错误码
+	ResponseCondition string         `json:"responseCondition"`      //返回判断条件，仅api支持
+	ErrorMsg          string         `json:"errorMsg"`               //返回不符合条件时，返回的错误码，仅api支持
 
+	NowResponse   bool   `json:"nowResponse"`   //是否立即响应
 	IgnoreError   bool   `json:"ignoreError"`   //是否忽略error
 	OutputData    any    `json:"outputData"`    //返回数据,仅支持string 和 map
-	Timeout       int    `json:"timeout"`       //组件最大运行时间
+	Timeout       int    `json:"timeout"`       //组件最大运行时间/s
 	OutputName    string `json:"outputName"`    //返回数据名
 	RetryMaxCount int    `json:"retryMaxCount"` //最大重试次数
 	RetryMaxWait  int    `json:"retryMaxWait"`  //重试最大等待时长

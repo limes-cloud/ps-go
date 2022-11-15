@@ -135,6 +135,14 @@ func (r *runtime) Run() {
 			cache.setCache(resp)
 		}
 	}
+
+	if r.component.NowResponse { //设置了立即
+		if mr, ok := resp.(map[string]any); ok {
+			r.response.SetAndClose(mr)
+		} else {
+			r.response.SetAndClose(map[string]any{})
+		}
+	}
 	r.wg.Done()
 }
 
