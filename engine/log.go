@@ -45,6 +45,7 @@ type ComponentLog interface {
 	SetStep(step int)
 	SetAction(c int)
 	SetSkip(is bool)
+	SetOutputData(data any)
 }
 
 type RequestLog interface {
@@ -242,9 +243,10 @@ type componentLog struct {
 	DataType     string            `json:"data_type,omitempty"` //xml|text|json
 	Timeout      int               `json:"timeout,omitempty"`
 	ResponseType string            `json:"response_type,omitempty"`
-
-	Response    any           `json:"response"`               //输出数据
-	RequestLogs []*requestLog `json:"request_logs,omitempty"` //使用脚本请求的数据
+	IgnoreError  bool              `json:"ignore_error"`
+	OutputData   any               `json:"output_data,omitempty"`
+	Response     any               `json:"response"`               //输出数据
+	RequestLogs  []*requestLog     `json:"request_logs,omitempty"` //使用脚本请求的数据
 }
 
 func (s *componentLog) SetStep(step int) {
@@ -283,6 +285,11 @@ func (s *componentLog) SetRequest(com Component) {
 	s.Url = com.Url
 	s.OutputName = com.OutputName
 	s.IsCache = com.IsCache
+	s.IgnoreError = com.IgnoreError
+}
+
+func (s *componentLog) SetOutputData(data any) {
+	s.OutputData = data
 }
 
 func (s *componentLog) SetApiRequest(com tools.HttpRequest) {

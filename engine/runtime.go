@@ -88,6 +88,7 @@ func (r *runtime) Run() {
 	cache := r.newRunCache()
 	if r.component.IsCache { //从缓存读取数据
 		if resp, err = cache.getCache(); err == nil {
+			r.componentLog.SetOutputData(resp)
 			r.runStore.SetData(r.component.OutputName, resp)
 			r.wg.Done()
 			return
@@ -102,6 +103,14 @@ func (r *runtime) Run() {
 
 	//处理请求异常
 	if err != nil {
+		// 设置执行错误日志
+		r.componentLog.SetError(err)
+
+		// 忽略错误则直接返回
+		if r.component.IgnoreError {
+			return
+		}
+
 		if r.retry <= r.maxRetry && r.IsRetry(err) {
 			if r.retryMaxWait != 0 {
 				time.AfterFunc(r.getWaitTime(r.retry, r.maxRetry, r.retryMaxWait), func() {
@@ -114,13 +123,14 @@ func (r *runtime) Run() {
 		} else {
 			r.err.SetAndClose(err, r.wg)
 		}
-		// 设置执行错误日志
-		r.componentLog.SetError(err)
+
 		return
 	}
 
 	if r.component.OutputName != "" {
 		r.runStore.SetData(r.component.OutputName, resp)
+		r.componentLog.SetOutputData(resp)
+
 		if r.component.IsCache {
 			cache.setCache(resp)
 		}
@@ -217,8 +227,8 @@ func (r *runtime) runApi() (any, error) {
 	}
 
 	// 是否设置outputField
-	if r.component.outputData != nil {
-		return r.GetOutputData(r.component.outputData, data), nil
+	if r.component.OutputData != nil {
+		return r.GetOutputData(r.component.OutputData, data), nil
 	}
 
 	return data, nil
@@ -283,8 +293,8 @@ func (r *runtime) runScript() (resp any, err error) {
 		return nil, NewScriptFuncReturnError(err.Error())
 	}
 
-	if r.component.outputData != nil {
-		return r.GetOutputData(r.component.outputData, respData), nil
+	if r.component.OutputData != nil {
+		return r.GetOutputData(r.component.OutputData, respData), nil
 	}
 
 	return respData, nil

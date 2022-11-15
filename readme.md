@@ -209,6 +209,7 @@ components：执行组件相关配置，后续详细说明。
     "responseCondition":"{code}==200", //返回条件判断
     "outputData":"{data}", //返回数据
     "errMsg":"{msg}",
+    "ignoreError":true, //是否忽略错误
     "tls":{       //发送http请求携带的证书
         "ca":"123",  //ca 标志符。会从密钥库查询标志符对应的密钥
         "key":"345"  //key 标志符。会从密钥库查询标志符对应的密钥
