@@ -33,9 +33,9 @@ func Init() *gin.Engine {
 		// 密钥管理相关
 		api.GET("/secret", handler.GetSecret)
 		api.GET("/secret/page", handler.PageSecret)
-		api.POST("/script", handler.AddSecret)
+		api.POST("/secret", handler.AddSecret)
 		api.PUT("/secret", handler.UpdateSecret)
-		api.DELETE("/script", handler.DeleteSecret)
+		api.DELETE("/secret", handler.DeleteSecret)
 
 		// 异常中断api
 		api.GET("/suspend/page", handler.PageSuspend)
