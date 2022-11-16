@@ -151,7 +151,7 @@ func (r *runner) WaitResponse() {
 
 	// 拿到了就删除返回通道，只能返回一次
 	data, is := r.response.Get()
-	if !is {
+	if !is || data == nil {
 		return
 	}
 	r.runStore.SetData(consts.PSResponseKey, data)
