@@ -1,9 +1,5 @@
 package engine
 
-import "github.com/json-iterator/go"
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
 const (
 	Int    = "int"
 	Float  = "float"

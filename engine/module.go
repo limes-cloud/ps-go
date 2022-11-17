@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"

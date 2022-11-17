@@ -1,7 +1,9 @@
 package engine
 
 import (
+	json2 "encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"github.com/limeschool/gin"
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
@@ -70,7 +72,7 @@ func (r *runtime) Run() {
 	defer r.setLog(resp, err, time.Now())
 
 	// 判断是否跳过
-	entry, err := r.GetConditionResult(r.component.Condition)
+	entry, err := r.GetConditionResult(r.component.Condition, nil)
 	if err != nil {
 		r.err.SetAndClose(err, r.wg)
 	}
@@ -211,7 +213,7 @@ func (r *runtime) runApi() (any, error) {
 	}
 
 	// 获取返回表达式
-	is, err := r.GetConditionResult(r.component.ResponseCondition)
+	is, err := r.GetConditionResult(r.component.ResponseCondition, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +360,7 @@ func (r *runtime) IsRetry(err error) bool {
 }
 
 // GetConditionResult 获取表达式结果
-func (r *runtime) GetConditionResult(condition string) (bool, error) {
+func (r *runtime) GetConditionResult(condition string, data any) (bool, error) {
 	if strings.Trim(condition, " ") == "" {
 		return true, nil
 	}
@@ -374,41 +376,47 @@ func (r *runtime) GetConditionResult(condition string) (bool, error) {
 		key := fmt.Sprintf("a_%v", index)
 
 		cond = strings.ReplaceAll(cond, valIndex, key)
-
-		newVal := r.runStore.GetData(valIndex[1 : len(valIndex)-1])
+		var newVal any
+		if data == nil {
+			newVal = r.runStore.GetData(valIndex[1 : len(valIndex)-1])
+		} else {
+			temp, _ := data.(map[string]any)
+			newVal = tools.GetMapData(valIndex[1:len(valIndex)-1], temp)
+		}
 		if newVal == nil {
-			script += fmt.Sprintf("let %v = null;", key)
+			script += fmt.Sprintf("var %v = null;", key)
 			continue
 		}
 
 		// 进行变量转换
 		switch newVal.(type) {
 		case uint8, uint16, uint32, uint, uint64, int8, int16, int32, int, int64, float64, float32, bool:
-			script += fmt.Sprintf("let %v = %v;", key, fmt.Sprint(newVal))
-
+			script += fmt.Sprintf("var %v = %v;", key, fmt.Sprint(newVal))
+		case json.Number, json2.Number:
+			script += fmt.Sprintf("var %v = %v;", key, fmt.Sprint(newVal))
 		case string:
-			script += fmt.Sprintf(`let %v = "%v";`, key, newVal.(string))
+			script += fmt.Sprintf(`var %v = "%v";`, key, newVal.(string))
 
 		case []any, map[string]any:
 			str, _ := json.MarshalToString(newVal)
-			script += fmt.Sprintf(`let %v = %v;`, key, str)
+			script += fmt.Sprintf(`var %v = %v;`, key, str)
 
 		default:
 			tp := reflect.TypeOf(newVal)
 
 			if tp.Kind() == reflect.Map || tp.Kind() == reflect.Slice {
 				str, _ := json.MarshalToString(newVal)
-				script += fmt.Sprintf(`let %v = %v;`, key, str)
+				script += fmt.Sprintf(`var %v = %v;`, key, str)
 			} else {
 				//处理不了的数据值默认为 undefined
-				script += fmt.Sprintf("let %v = undefined;", key)
+				script += fmt.Sprintf("var %v = undefined;", key)
 			}
 		}
 
 	}
 
 	vm := otto.New()
-	script = fmt.Sprintf("function condition(){%v return %v}", script, cond)
+	script = fmt.Sprintf("function condition(){%v return %v;}", script, cond)
 	_, err := vm.Run(script)
 	if err != nil {
 		return false, NewConditionError(err.Error())

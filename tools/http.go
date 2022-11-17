@@ -52,7 +52,7 @@ func (r *HttpRequest) ResponseCookies() map[string]string {
 
 func (r *HttpRequest) Result() (any, error) {
 	err := r.Do()
-	return r.Body, err
+	return r.respBody, err
 }
 
 func (r *HttpRequest) Do() error {
