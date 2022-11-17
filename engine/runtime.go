@@ -153,7 +153,6 @@ func (r *runtime) runApi() (any, error) {
 	com := r.component
 
 	var header = make(map[string]string)
-	var body any
 	var auth = make([]string, 0)
 
 	// 转换header
@@ -161,11 +160,6 @@ func (r *runtime) runApi() (any, error) {
 		for key, val := range com.Header {
 			header[key] = fmt.Sprint(val)
 		}
-	}
-
-	// 转换body
-	if len(com.Input) != 0 {
-		body = com.Input
 	}
 
 	// 转换auth
@@ -180,11 +174,12 @@ func (r *runtime) runApi() (any, error) {
 		Method:       com.Method,
 		Header:       header,
 		Auth:         auth,
-		Body:         body,
+		Body:         com.Input,
 		ContentType:  com.ContentType,
 		Timeout:      com.Timeout,
 		ResponseType: com.ResponseType,
 		DataType:     com.DataType,
+		XmlName:      com.XmlName,
 	}
 
 	if com.Tls != nil {
@@ -223,7 +218,7 @@ func (r *runtime) runApi() (any, error) {
 
 	// 表达式为false
 	if !is {
-		reg := regexp.MustCompile(`\{(\w|\.)+\}`)
+		reg := regexp.MustCompile(`\{(\w|\.)+}`)
 		if str := reg.FindString(r.component.ErrorMsg); str != "" {
 			return nil, errors.New(fmt.Sprint(tools.GetMapData(str[1:len(str)-1], data)))
 		}
@@ -310,8 +305,9 @@ func (r *runtime) transferData() {
 		r.runStore.GetMatchData(r.component.Header)
 	}
 
-	if len(r.component.Input) != 0 {
-		r.runStore.GetMatchData(r.component.Input)
+	if r.component.Input != nil {
+		// input可能为字符类型
+		r.component.Input = r.runStore.GetMatchData(r.component.Input)
 	}
 
 	if len(r.component.Auth) != 0 {

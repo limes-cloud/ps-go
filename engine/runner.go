@@ -24,6 +24,8 @@ type Runner interface {
 	SetStep(index int)
 	SetMethodAndPath(m, p string)
 	SetStepComponentRetry(index int, names []string) error
+	ResponseType() string
+	ResponseXml() string
 }
 
 type runner struct {
@@ -225,6 +227,26 @@ func (r *runner) ResponseError(err error) {
 	r.response.SetAndClose(map[string]any{"code": errors.DefaultCode, "msg": err.Error()})
 }
 
+func (r *runner) ResponseXml() string {
+	resp := r.runStore.GetData(consts.PSResponseKey)
+	if r.rule.Response.DefaultBody != nil && resp == nil {
+		resp = r.rule.Response.DefaultBody
+	}
+	body := r.rule.Response.Body
+	if body != nil {
+		resp = r.runStore.GetMatchData(r.rule.Response.Body)
+	}
+	xmlStr := ""
+	switch resp.(type) {
+	case string:
+		xmlStr = resp.(string)
+	case map[string]any:
+		temp := resp.(map[string]any)
+		xmlStr = tools.ToXmlString(temp, r.rule.Response.XmlName)
+	}
+	return xmlStr
+}
+
 // Response 进行数据返回
 func (r *runner) Response() any {
 	//当返回值为nil，且具有默认返回值时，直接返回默认返回值
@@ -371,4 +393,8 @@ func (r *runner) SetError(err error) {
 	if log != nil {
 		log.SetError(err)
 	}
+}
+
+func (r *runner) ResponseType() string {
+	return r.rule.Response.Type
 }

@@ -2,7 +2,6 @@ package tools
 
 import (
 	"crypto/tls"
-	"encoding/xml"
 	"fmt"
 	"github.com/valyala/fasthttp"
 	"ps-go/consts"
@@ -24,6 +23,7 @@ type HttpRequest struct {
 	Auth         []string          `json:"auth"`
 	ContentType  string            `json:"content_type"`
 	DataType     string            `json:"data_type"` //xml|text|json
+	XmlName      string            `json:"xml_name"`
 	Timeout      int               `json:"timeout"`
 	ResponseType string            `json:"response_type"`
 	Tls          *Tls              `json:"-"`
@@ -96,9 +96,10 @@ func (r *HttpRequest) Do() error {
 	var data []byte
 	if r.Body != nil {
 		if r.Method == "GET" {
-			r.Url += "?" + r.BodyToQuery()
+			r.Url += "?" + r.bodyToQuery()
 		} else {
-			data, _ = json.Marshal(r.Body)
+			temp, _ := ToString(r.Body)
+			data = []byte(temp)
 		}
 	}
 
@@ -154,7 +155,7 @@ func (r *HttpRequest) Do() error {
 
 	if r.ResponseType == consts.RespXml {
 		var respData = make(map[string]any)
-		if xml.Unmarshal(b, (*XmlResult)(&respData)) != nil {
+		if XmlToAny(string(b), &respData) != nil {
 			return errors.New("返回数据非xml格式")
 		}
 		r.respBody = respData
@@ -179,11 +180,11 @@ func getTlsConfig(rootCa, rootKey []byte) (*tls.Config, error) {
 	}, nil
 }
 
-func (r *HttpRequest) BodyToQuery() string {
+func (r *HttpRequest) bodyToQuery() string {
 	data := r.Body
 	if r.DataType == consts.RespXml {
 		respData := make(map[string]any)
-		if xml.Unmarshal([]byte(fmt.Sprint(r.Body)), (*XmlResult)(&respData)) == nil {
+		if XmlToAny(fmt.Sprint(r.Body), &respData) == nil {
 			data = respData
 		}
 	}

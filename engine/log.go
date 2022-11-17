@@ -226,14 +226,14 @@ type componentLog struct {
 	StartDatetime string `json:"start_datetime"`
 	EndDatetime   string `json:"end_datetime"`
 
-	Input      map[string]any `json:"input"`       //输入数据
-	Name       string         `json:"name"`        //组件名
-	Desc       string         `json:"desc"`        //组件描述
-	Type       string         `json:"type"`        //组件类型 [api|script]
-	Url        string         `json:"url"`         //地址
-	OutputName string         `json:"output_name"` //输出对象名
-	IsCache    bool           `json:"is_cache"`    //是否启用缓存
-	IsSkip     bool           `json:"is_skip"`     //是否进入执行
+	Input      any    `json:"input"`       //输入数据
+	Name       string `json:"name"`        //组件名
+	Desc       string `json:"desc"`        //组件描述
+	Type       string `json:"type"`        //组件类型 [api|script]
+	Url        string `json:"url"`         //地址
+	OutputName string `json:"output_name"` //输出对象名
+	IsCache    bool   `json:"is_cache"`    //是否启用缓存
+	IsSkip     bool   `json:"is_skip"`     //是否进入执行
 	// api 特有日志字段
 	Method       string            `json:"method,omitempty"`
 	Body         any               `json:"body,omitempty"`

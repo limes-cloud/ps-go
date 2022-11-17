@@ -36,6 +36,7 @@ type FieldRule struct {
 
 type Response struct {
 	Type        string         `json:"type"`        //返回数据类型，目前仅支持json
+	XmlName     string         `json:"xmlName"`     //xml名 仅type为xml时支持
 	Body        map[string]any `json:"body"`        //返回数据
 	Header      map[string]any `json:"header"`      //返回附加header
 	DefaultBody map[string]any `json:"defaultBody"` //默认返回值
@@ -47,21 +48,22 @@ type tls struct {
 }
 
 type Component struct {
-	IsFinish  bool           `json:"-"`                   //附加字段，恢复任务时用
-	Name      string         `json:"name"`                //组件名,同一个step层下，name不能重复
-	Desc      string         `json:"desc"`                //组件描述
-	Type      string         `json:"type"`                //组件类型 [api|script]
-	Input     map[string]any `json:"input,omitempty"`     //输入参数
-	Condition string         `json:"condition,omitempty"` //准入条件
-	Url       string         `json:"url"`                 //组件地址|api接口
-	IsCache   bool           `json:"isCache"`             //是否启用缓存
+	IsFinish  bool   `json:"-"`                   //附加字段，恢复任务时用
+	Name      string `json:"name"`                //组件名,同一个step层下，name不能重复
+	Desc      string `json:"desc"`                //组件描述
+	Type      string `json:"type"`                //组件类型 [api|script]
+	Input     any    `json:"input,omitempty"`     //输入参数
+	Condition string `json:"condition,omitempty"` //准入条件
+	Url       string `json:"url"`                 //组件地址|api接口
+	IsCache   bool   `json:"isCache"`             //是否启用缓存
 
 	Method            string         `json:"method,omitempty"`       //请求方法，仅api支持
 	ContentType       string         `json:"contentType,omitempty"`  //数据类型，仅api支持
 	Auth              []any          `json:"auth,omitempty"`         //请求auth，仅api支持
 	Header            map[string]any `json:"header,omitempty"`       //请求header，仅api支持
-	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持
+	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持[xml\json]
 	DataType          string         `json:"dataType,omitempty"`     //数据类型，仅api支持
+	XmlName           string         `json:"xmlName"`                //请求xml的name，仅dataType为xml时生效
 	Tls               *tls           `json:"tls,omitempty"`          //请求ca证书，仅api支持
 	ResponseCondition string         `json:"responseCondition"`      //返回判断条件，仅api支持
 	ErrorMsg          string         `json:"errorMsg"`               //返回不符合条件时，返回的错误码，仅api支持

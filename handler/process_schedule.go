@@ -54,9 +54,17 @@ func ProcessSchedule(ctx *gin.Context) {
 	// 同步等待返回结果
 	runner.WaitResponse()
 	// 获取返回结果
-	data := runner.Response()
+	if runner.ResponseType() == consts.RespXml {
+		ctx.Writer.Header().Set("Content-Type", "application/xml")
+		ctx.String(200, runner.ResponseXml())
+		return
+	}
 
-	// 输出
+	data := runner.Response()
+	if runner.ResponseType() == consts.RespText {
+		ctx.String(200, fmt.Sprint(data))
+		return
+	}
 	ctx.RespJson(data)
 }
 

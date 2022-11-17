@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"encoding/xml"
 	"fmt"
 	"github.com/limeschool/gin"
 	"io"
@@ -99,7 +98,7 @@ func (v *validate) getBody(ctx *gin.Context) map[string]any {
 	byteData, _ := io.ReadAll(ctx.Request.Body)
 
 	if v.request.Type == "xml" {
-		_ = xml.Unmarshal(byteData, (*tools.XmlResult)(&resp))
+		_ = tools.XmlToAny(string(byteData), &resp)
 	}
 
 	if v.request.Type == "json" {
