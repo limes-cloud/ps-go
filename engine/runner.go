@@ -242,7 +242,7 @@ func (r *runner) ResponseXml() string {
 		xmlStr = resp.(string)
 	case map[string]any:
 		temp := resp.(map[string]any)
-		xmlStr = tools.ToXmlString(temp, r.rule.Response.XmlName)
+		xmlStr = tools.AnyToXmlString(temp, r.rule.Response.XmlName)
 	}
 	return xmlStr
 }

@@ -52,7 +52,7 @@ func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 		Header       map[string]string `json:"header"`       //请求的header
 		Auth         []string          `json:"auth"`         //请求的auth
 		ContentType  string            `json:"contentType"`  //请求类型
-		DataType     string            `json:"dataType"`     //数据类型
+		RequestType  string            `json:"requestType"`  //数据类型
 		Timeout      int               `json:"timeout"`      //超时时间
 		ResponseType string            `json:"responseType"` //返回类型
 		IsCache      bool              `json:"isCache"`      //是否缓存
@@ -101,7 +101,7 @@ func RequestModule(r *runtime) func(call otto.FunctionCall) otto.Value {
 			Header:       arg.Header,
 			Auth:         arg.Auth,
 			ContentType:  arg.ContentType,
-			DataType:     arg.DataType,
+			RequestType:  arg.RequestType,
 			Timeout:      arg.Timeout,
 			ResponseType: arg.ResponseType,
 		}

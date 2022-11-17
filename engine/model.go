@@ -61,8 +61,8 @@ type Component struct {
 	ContentType       string         `json:"contentType,omitempty"`  //数据类型，仅api支持
 	Auth              []any          `json:"auth,omitempty"`         //请求auth，仅api支持
 	Header            map[string]any `json:"header,omitempty"`       //请求header，仅api支持
-	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持[xml\json]
-	DataType          string         `json:"dataType,omitempty"`     //数据类型，仅api支持
+	RequestType       string         `json:"requestType"`            //请求的数据类型，仅api支持
+	ResponseType      string         `json:"responseType,omitempty"` //返回数据类型，仅api支持[xml\json] 这里会
 	XmlName           string         `json:"xmlName"`                //请求xml的name，仅dataType为xml时生效
 	Tls               *tls           `json:"tls,omitempty"`          //请求ca证书，仅api支持
 	ResponseCondition string         `json:"responseCondition"`      //返回判断条件，仅api支持

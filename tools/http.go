@@ -22,7 +22,7 @@ type HttpRequest struct {
 	Header       map[string]string `json:"header"`
 	Auth         []string          `json:"auth"`
 	ContentType  string            `json:"content_type"`
-	DataType     string            `json:"data_type"` //xml|text|json
+	RequestType  string            `json:"request_type"` //xml|text|json
 	XmlName      string            `json:"xml_name"`
 	Timeout      int               `json:"timeout"`
 	ResponseType string            `json:"response_type"`
@@ -83,13 +83,13 @@ func (r *HttpRequest) Do() error {
 	}
 
 	// 默认的数据类型为json
-	if r.DataType == "" {
-		r.DataType = consts.RespJson
+	if r.RequestType == "" {
+		r.RequestType = consts.RespJson
 	}
 
 	// 默认的请求类型根据数据类型赋值
-	if r.ContentType == "" && r.DataType != consts.RespText {
-		r.ContentType = "application/" + r.DataType
+	if r.ContentType == "" && r.RequestType != consts.RespText {
+		r.ContentType = "application/" + r.RequestType
 	}
 
 	// 处理请求body
@@ -98,8 +98,14 @@ func (r *HttpRequest) Do() error {
 		if r.Method == "GET" {
 			r.Url += "?" + r.bodyToQuery()
 		} else {
-			temp, _ := ToString(r.Body)
-			data = []byte(temp)
+			if r.RequestType == consts.RespXml {
+				temp := AnyToXmlString(r.Body, r.XmlName)
+				data = []byte(temp)
+			}
+			if r.RequestType == consts.RespJson {
+				temp := AnyToJsonString(r.Body)
+				data = []byte(temp)
+			}
 		}
 	}
 
@@ -146,8 +152,8 @@ func (r *HttpRequest) Do() error {
 
 	if r.ResponseType == consts.RespJson {
 		var respData = make(map[string]any)
-		if json.Unmarshal(b, &respData) != nil {
-			return errors.New("返回数据非json格式")
+		if StrToAny(string(b), &respData) != nil {
+			return errors.New("返回数据无法转换为xml数据")
 		}
 		r.respBody = respData
 		return nil
@@ -182,7 +188,7 @@ func getTlsConfig(rootCa, rootKey []byte) (*tls.Config, error) {
 
 func (r *HttpRequest) bodyToQuery() string {
 	data := r.Body
-	if r.DataType == consts.RespXml {
+	if r.RequestType == consts.RespXml {
 		respData := make(map[string]any)
 		if XmlToAny(fmt.Sprint(r.Body), &respData) == nil {
 			data = respData
@@ -196,15 +202,19 @@ func (r *HttpRequest) bodyToQuery() string {
 			slice = append(slice, fmt.Sprintf("%v=%v", key, val))
 		}
 	case map[string]string:
-		for key, val := range data.(map[string]any) {
+		for key, val := range data.(map[string]string) {
 			slice = append(slice, fmt.Sprintf("%v=%v", key, val))
 		}
 	case map[string]int:
-		for key, val := range data.(map[string]any) {
+		for key, val := range data.(map[string]int) {
 			slice = append(slice, fmt.Sprintf("%v=%v", key, val))
 		}
 	case map[string]float64:
-		for key, val := range data.(map[string]any) {
+		for key, val := range data.(map[string]float64) {
+			slice = append(slice, fmt.Sprintf("%v=%v", key, val))
+		}
+	case map[string]bool:
+		for key, val := range data.(map[string]bool) {
 			slice = append(slice, fmt.Sprintf("%v=%v", key, val))
 		}
 	}

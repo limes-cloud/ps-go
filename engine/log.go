@@ -240,7 +240,7 @@ type componentLog struct {
 	Header       map[string]string `json:"header,omitempty"`
 	Auth         []string          `json:"auth,omitempty"`
 	ContentType  string            `json:"content_type,omitempty"`
-	DataType     string            `json:"data_type,omitempty"` //xml|text|json
+	RequestType  string            `json:"request_type,omitempty"` //xml|text|json
 	Timeout      int               `json:"timeout,omitempty"`
 	ResponseType string            `json:"response_type,omitempty"`
 	IgnoreError  bool              `json:"ignore_error"`
@@ -298,7 +298,7 @@ func (s *componentLog) SetApiRequest(com tools.HttpRequest) {
 	s.Header = com.Header
 	s.Auth = com.Auth
 	s.ContentType = com.ContentType
-	s.DataType = com.DataType
+	s.RequestType = com.RequestType
 	s.Timeout = com.Timeout
 	s.ResponseType = com.ResponseType
 }
@@ -327,7 +327,7 @@ type requestLog struct {
 	Header        map[string]string `json:"header,omitempty"`
 	Auth          []string          `json:"auth,omitempty"`
 	ContentType   string            `json:"content_type,omitempty"`
-	DataType      string            `json:"data_type,omitempty"`
+	RequestType   string            `json:"request_type,omitempty"`
 	Timeout       int               `json:"timeout,omitempty"`
 	ResponseType  string            `json:"response_type,omitempty"`
 	RespHeader    map[string]string `json:"resp_header,omitempty"`
@@ -351,7 +351,7 @@ func (s *requestLog) SetRequest(com tools.HttpRequest) {
 	s.Header = com.Header
 	s.Auth = com.Auth
 	s.ContentType = com.ContentType
-	s.DataType = com.DataType
+	s.RequestType = com.RequestType
 	s.Timeout = com.Timeout
 	s.ResponseType = com.ResponseType
 }

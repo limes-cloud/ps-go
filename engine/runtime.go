@@ -178,7 +178,7 @@ func (r *runtime) runApi() (any, error) {
 		ContentType:  com.ContentType,
 		Timeout:      com.Timeout,
 		ResponseType: com.ResponseType,
-		DataType:     com.DataType,
+		RequestType:  com.RequestType,
 		XmlName:      com.XmlName,
 	}
 
@@ -306,7 +306,7 @@ func (r *runtime) transferData() {
 	}
 
 	if r.component.Input != nil {
-		// input可能为字符类型
+		// input可能为字符类型，
 		r.component.Input = r.runStore.GetMatchData(r.component.Input)
 	}
 

@@ -4,13 +4,23 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 )
 
-func ToXmlString(data any, root string) string {
+func AnyToXmlString(data any, root string) string {
 	j := gjson.New(data)
 	return j.MustToXmlString(root)
 }
 
+func AnyToJsonString(data any) string {
+	j := gjson.New(data)
+	return j.MustToJsonString()
+}
+
+func StrToAny(str string, data any) error {
+	j := gjson.New(str)
+	return j.Scan(&data)
+}
+
 func XmlToAny(xml string, data any) error {
-	j := gjson.New(xml, true)
+	j := gjson.New(xml)
 	if err := j.Scan(data); err != nil {
 		return err
 	}
