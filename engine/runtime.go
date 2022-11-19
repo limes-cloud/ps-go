@@ -107,7 +107,6 @@ func (r *runtime) Run() {
 	if err != nil {
 		// 设置执行错误日志
 		r.componentLog.SetError(err)
-
 		// 忽略错误则直接返回
 		if r.component.IgnoreError {
 			return

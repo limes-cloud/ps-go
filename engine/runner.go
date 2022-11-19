@@ -293,7 +293,8 @@ func (r *runner) GetComponentErrorNames() string {
 
 // Suspend 服务挂起
 func (r *runner) Suspend(err error) {
-	if !r.rule.Suspend {
+	// 当数据接口已经返回，处于异步执行时，才支持挂起
+	if !r.rule.Suspend && r.response.IsClose() {
 		return
 	}
 
