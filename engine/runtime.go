@@ -104,13 +104,9 @@ func (r *runtime) Run() {
 	}
 
 	//处理请求异常
-	if err != nil {
+	if err != nil && !r.component.IgnoreError {
 		// 设置执行错误日志
 		r.componentLog.SetError(err)
-		// 忽略错误则直接返回
-		if r.component.IgnoreError {
-			return
-		}
 
 		if r.retry <= r.maxRetry && r.IsRetry(err) {
 			if r.retryMaxWait != 0 {
@@ -126,6 +122,10 @@ func (r *runtime) Run() {
 		}
 
 		return
+	}
+
+	if r.component.OutputData != nil {
+		resp = r.GetOutputData(r.component.OutputData, resp)
 	}
 
 	if r.component.OutputName != "" {
@@ -226,11 +226,6 @@ func (r *runtime) runApi() (any, error) {
 		return nil, errors.New(r.component.ErrorMsg)
 	}
 
-	// 是否设置outputField
-	if r.component.OutputData != nil {
-		return r.GetOutputData(r.component.OutputData, data), nil
-	}
-
 	return data, nil
 }
 
@@ -291,10 +286,6 @@ func (r *runtime) runScript() (resp any, err error) {
 	respData, err := value.Export()
 	if err != nil {
 		return nil, NewScriptFuncReturnError(err.Error())
-	}
-
-	if r.component.OutputData != nil {
-		return r.GetOutputData(r.component.OutputData, respData), nil
 	}
 
 	return respData, nil

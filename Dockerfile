@@ -9,6 +9,7 @@ RUN ls /usr/local/build/ps-go
 
 FROM scratch AS runner
 WORKDIR /app/build/ps-go
-COPY --from=builder /usr/local/build/ps-go .
+COPY --from=builder /usr/local/build/ps-go/ .
+RUN ls
 EXPOSE 8080
 ENTRYPOINT ["./ps-go"]

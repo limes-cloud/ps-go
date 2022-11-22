@@ -8,12 +8,16 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/jinzhu/copier v0.3.5
 	github.com/json-iterator/go v1.1.12
-	github.com/limeschool/gin v0.0.12
+	github.com/limeschool/gin v0.0.13
 	github.com/panjf2000/ants v1.2.1
 	github.com/robertkrimen/otto v0.0.0-20221025135307-511d75fba9f8
 	github.com/valyala/fasthttp v1.41.0
 	go.uber.org/zap v1.21.0
 	gorm.io/gorm v1.23.8
+)
+
+replace (
+	github.com/limeschool/gin v0.0.13 => ../src/github.com/limeschool/gin
 )
 
 require (

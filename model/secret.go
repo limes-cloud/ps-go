@@ -70,12 +70,16 @@ func (s *Secret) OneByCache(ctx *gin.Context, key string) (bool, error) {
 		return false, err
 	}
 
+	if len(byteData) == 0 {
+		return false, errors.DBNotFoundError
+	}
+
 	if err = json.Unmarshal(byteData, s); err != nil {
 		return false, err
 	}
 
 	if s.ID == 0 {
-		return false, gorm.ErrRecordNotFound
+		return true, gorm.ErrRecordNotFound
 	}
 
 	return true, nil
