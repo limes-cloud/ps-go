@@ -27,6 +27,7 @@ type Runner interface {
 	SetStepComponentRetry(index int, names []string) error
 	ResponseType() string
 	ResponseXml() string
+	Release()
 }
 
 type runner struct {
@@ -137,6 +138,23 @@ func (r *runner) NewLogger() {
 		Version: r.version,
 		Trx:     r.trx,
 	}
+}
+
+func (r *runner) Release() {
+	r.trx = ""
+	r.version = ""
+	r.rule = nil
+	r.copyRule = nil
+	r.count = 0
+	r.index = 0
+	r.curIndex = 0
+	r.runStore = nil
+	r.wg = nil
+	r.store = nil
+	r.response = nil
+	r.ctx = nil
+	r.err = nil
+	runnerPool.Put(r)
 }
 
 func (r *runner) NewLoggerFromString(str string) {

@@ -56,11 +56,9 @@ func (e engine) NewRunStoreByData(data map[string]any) RunStore {
 // NewRunner 创建运行调度器
 func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner {
 	run := runnerPool.Get().(*runner)
-	runnerPool.Put(run)
 
 	var copyRule = new(Rule)
 	*copyRule = *rule
-
 	run.trx = ctx.Writer.Header().Get(consts.ProcessScheduleTrx)
 	run.version = rule.Version
 	run.rule = rule
@@ -80,6 +78,7 @@ func (e engine) NewRunner(ctx *gin.Context, rule *Rule, rStore RunStore) Runner 
 		err:  make(chan error),
 		lock: sync.RWMutex{},
 	}
+
 	return run
 }
 

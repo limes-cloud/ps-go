@@ -70,9 +70,6 @@ func (u *Rule) CacheKey(key string) string {
 
 // OneByCache 通过key查询缓存
 func (u *Rule) OneByCache(ctx *gin.Context, key string) (bool, error) {
-	// test 关闭缓存
-	return false, errors.DBError
-
 	byteData, err := cache(ctx).Get(ctx, key).Bytes()
 	if err != nil {
 		return false, err

@@ -42,6 +42,7 @@ func ProcessSchedule(ctx *gin.Context) {
 	// 创建运行器
 	runner := eg.NewRunner(ctx, rule, runStore)
 	runner.SetMethodAndPath(ctx.Request.Method, path)
+	defer runner.Release()
 
 	// 设置执行日志
 	runner.NewLogger()
